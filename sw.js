@@ -1,13 +1,15 @@
 /* TooSynced service worker — makes the app installable + snappy repeat loads.
    Network-first so deploys show up immediately; cache is only a fallback. */
-const CACHE = "toosynced-v2";
+const CACHE = "toosynced-v4";
 const SHELL = [
-  "index.html", "pair.html", "app.html", "streaks.html", "settings.html",
+  "index.html", "profile.html", "syncs.html", "invite.html",
+  "app.html", "chat.html", "streaks.html", "settings.html",
   "assets/css/main.css",
   "assets/js/config.js", "assets/js/store.js", "assets/js/ui.js",
-  "assets/js/auth.js", "assets/js/pair.js", "assets/js/app.js",
+  "assets/js/auth.js", "assets/js/profile.js", "assets/js/syncs.js",
+  "assets/js/invite.js", "assets/js/app.js", "assets/js/chat.js",
   "assets/js/streaks.js", "assets/js/settings.js",
-  "manifest.webmanifest", "icons/favicon.png", "icons/icon-192.png", "icons/icon-512.png"
+  "manifest.webmanifest", "icons/favicon.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png"
 ];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

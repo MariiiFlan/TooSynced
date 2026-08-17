@@ -3,29 +3,34 @@
    ============================================================ */
 (function () {
   const $ = (s) => document.querySelector(s);
-  let me = null, partner = null, tasks = [], completions = new Map();
+  let me = null, sync = null, members = [], partner = null, tasks = [], completions = new Map();
   tsAurora();
 
-  tsRequireAuth((user, pair) => {
-    me = user;
-    if (!pair) { location.href = "pair.html"; return; }
-    partner = (pair.members || []).find(m => m.uid !== me.uid) || null;
+  tsRequireSync((user, s) => {
+    me = user; sync = s;
+    members = (s.memberUids || []).map(u => ({ uid: u, ...(s.members[u] || { name: "?" }) }));
+    members.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : 0));
+    tsColorMembers(members, me.uid);
+    partner = members.find(m => m.uid !== me.uid) || null;
 
-    $("#me-avatar").textContent = init(me.name);
-    $("#my-av").textContent = init(me.name);
-    $("#my-name").textContent = me.name;
-    $("#legend-me").textContent = me.name;
+    tsSyncSwitcher("#sync-switch", s);
+    $("#my-av").outerHTML = tsAvatar(members[0] || me, 36);
+    $("#my-name").textContent = "You";
+    $("#legend-me").textContent = "You";
     if (partner) {
-      $("#their-av").textContent = init(partner.name);
+      $("#their-av").outerHTML = tsAvatar(partner, 36);
       $("#their-name").textContent = partner.name;
       $("#legend-them").textContent = partner.name;
+    }
+    /* a group sync compares you against the group's best day-rate */
+    if (members.length > 2) {
+      $("#their-name").textContent = "The group";
+      $("#legend-them").textContent = "Group avg";
     }
 
     Store.watchTasks((t) => { tasks = t; render(); });
     Store.watchCompletions((c) => { completions = new Map(c.map(x => [x.taskId + "_" + x.date, x])); render(); });
   });
-
-  function init(n) { return (n || "?").charAt(0).toUpperCase(); }
   function tasksFor(uid, d) { return tasks.filter(t => t.owner === uid && TS.occursOn(t, d)); }
   function isDone(t, d) { return completions.has(t.id + "_" + d); }
   function dayState(uid, d) {
@@ -64,11 +69,12 @@
     /* per-person cards */
     renderPerson(me.uid, "my");
     if (partner) renderPerson(partner.uid, "their");
+    if (members.length > 2) $("#their-name").textContent = "The group";
 
     /* shared streak */
     const myS = personStreak(me.uid);
-    const theirS = partner ? personStreak(partner.uid) : 0;
-    const shared = partner ? Math.min(myS, theirS) : myS;
+    const allS = members.map(m => personStreak(m.uid));
+    const shared = members.length > 1 ? Math.min.apply(null, allS) : myS;
     $("#shared-streak").textContent = "Shared streak · " + shared + (shared === 1 ? " day" : " days");
     if (shared >= 3) {
       $("#hero-line").textContent = "You two are on a roll";
@@ -163,7 +169,7 @@
     if (!partner) return;
     /* repeating tasks both have: compare 7-day keep rate */
     const mineRep = tasks.filter(t => t.owner === me.uid && t.repeat.type !== "none");
-    const theirRep = tasks.filter(t => t.owner === partner.uid && t.repeat.type !== "none");
+    const theirRep = tasks.filter(t => t.owner !== me.uid && t.repeat.type !== "none");
     const rows = [];
     const seen = new Set();
     [...mineRep, ...theirRep].forEach(t => {

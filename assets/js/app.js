@@ -1,118 +1,133 @@
 /* ============================================================
-   TooSynced — main schedule page
+   TooSynced — schedule
+   Works for a Two Sync (two columns) or a Group Sync (a column
+   per person). Everything below is sync-aware.
    ============================================================ */
 (function () {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-  const ICONS = ["🚶","🏃","🏋️","🧘","💊","📚","💻","☕","🍝","📖","🧹","💧","🛏️","🎸","🛒","💜"];
+  const ICONS = ["🏃","🏋️","🧘","🚶","💊","💧","📚","💻","☕","🍝","📖","🧹","🛏️","🎸","🛒","💜"];
+  const PRAISE = ["👏", "🔥", "💜", "💪", "🙌"];
 
-  let me = null, partner = null;
-  let tasks = [];
-  let completions = new Map(); // `${taskId}_${date}` -> completion
-  let nudges = [];
-  let seenNudgeIds = new Set();
-  let currentDate = TS.today();
-  let currentView = "day";
-  let editingId = null;
-  let modalRepeat = "none";
-  let modalDays = new Set();
-  let modalIcon = ICONS[0];
-  let modalAllowNudge = true;
-  let firstNudgeLoad = true;
+  let me = null, sync = null, members = [];
+  let tasks = [], completions = new Map(), nudges = [], praises = [];
+  let seenNudges = new Set(), seenPraises = new Set();
+  let currentDate = TS.today(), currentView = "day", mobileTab = null;
+  let editingId = null, modalRepeat = "none", modalDays = new Set();
+  let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
+  let firstNudgeLoad = true, firstPraiseLoad = true;
 
   tsSplash();
   tsAurora();
 
-  tsRequireAuth(async (user, pair) => {
-    me = user;
-    if (!pair) { location.href = "pair.html"; return; }
-    partner = (pair.members || []).find(m => m.uid !== me.uid) || null;
+  tsRequireSync((user, s) => {
+    me = user; sync = s;
+    applySync(s);
+    tsSyncSwitcher("#sync-switch", s);
 
-    /* presence (10) */
     Store.startPresence();
-    Store.watchPresence((here) => {
-      document.getElementById("presence-wrap").classList.toggle("here", here);
-      document.querySelector(".person-col.theirs .who .txt").classList.toggle("presence-on", here);
-    });
-
-    $("#me-avatar").textContent = initial(me.name);
-    $("#col-me-av").textContent = initial(me.name);
-    if (partner) {
-      $("#col-them-av").textContent = initial(partner.name);
-      $("#them-title").textContent = partner.name + "'s day";
-      $("#mtab-theirs").textContent = partner.name;
-      $("#nudge-toggle-label").textContent = "Let " + partner.name + " nudge me if I miss it";
-    } else {
-      $("#them-title").textContent = "Partner's day";
-      $("#them-count").textContent = "not paired yet";
-    }
-
+    Store.watchPresence(paintPresence);
+    Store.watchSync((fresh) => { if (fresh) { sync = fresh; applySync(fresh); render(); } });
     Store.watchTasks((t) => { tasks = t; render(); });
     Store.watchCompletions((c) => {
       completions = new Map(c.map(x => [x.taskId + "_" + x.date, x]));
       render();
     });
-    Store.watchNudges((n) => {
-      nudges = n;
-      handleIncomingNudges();
-      firstNudgeLoad = false;
-    });
+    Store.watchNudges((n) => { nudges = n; handleNudges(); firstNudgeLoad = false; });
+    Store.watchPraises((p) => { praises = p; handlePraises(); firstPraiseLoad = false; render(); });
   });
 
-  function initial(n) { return (n || "?").charAt(0).toUpperCase(); }
+  function applySync(s) {
+    members = (s.memberUids || []).map(u => ({ uid: u, ...(s.members[u] || { name: "?" }) }));
+    /* me first, then everyone else */
+    members.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : 0));
+    tsColorMembers(members, me.uid);
+    if (!mobileTab || !members.find(m => m.uid === mobileTab)) mobileTab = me.uid;
+    const others = members.filter(m => m.uid !== me.uid);
+    $("#nudge-toggle-label").textContent = s.kind === "group"
+      ? "Let the group nudge me about this"
+      : (others[0] ? "Let " + others[0].name + " nudge me about this" : "Let people nudge me about this");
+  }
 
-  /* ---------- incoming nudges: chime + notification ---------- */
-  function handleIncomingNudges() {
-    const mine = nudges.filter(n => n.to === me.uid && !n.seen && !seenNudgeIds.has(n.id));
-    mine.forEach(n => {
-      seenNudgeIds.add(n.id);
+  function person(uid) { return members.find(m => m.uid === uid) || { uid, name: "Someone" }; }
+  function isDone(t, d) { return completions.has(t.id + "_" + d); }
+  function tasksFor(uid, dateStr) {
+    return tasks
+      .filter(t => t.owner === uid && TS.occursOn(t, dateStr))
+      .sort((a, b) => {
+        /* timed tasks in clock order first, "anytime" ones after */
+        if (a.time && b.time) return a.time.localeCompare(b.time);
+        if (a.time) return -1;
+        if (b.time) return 1;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
+  }
+  function praisesFor(taskId, dateStr) {
+    return praises.filter(p => p.taskId === taskId && p.date === dateStr);
+  }
+
+  /* ---------- incoming nudges / praise ---------- */
+  function handleNudges() {
+    nudges.filter(n => n.to === me.uid && !n.seen && !seenNudges.has(n.id)).forEach(n => {
+      seenNudges.add(n.id);
       if (!firstNudgeLoad) {
-        const task = tasks.find(t => t.id === n.taskId);
-        const who = partner ? partner.name : "Your partner";
-        const what = task ? task.name : "a task";
+        const t = tasks.find(x => x.id === n.taskId);
+        const who = person(n.from).name;
         tsChime();
-        tsToast("🔔 " + who + " nudged you about " + what);
-        tsNotify("TooSynced", who + " nudged you: " + what);
+        tsToast("🔔 " + who + " nudged you about " + (t ? t.name : "a task"));
+        tsNotify("TooSynced", who + " nudged you: " + (t ? t.name : "a task"));
       }
       Store.markNudgeSeen(n.id);
     });
   }
+  function handlePraises() {
+    praises.filter(p => p.to === me.uid && !p.seen && !seenPraises.has(p.id)).forEach(p => {
+      seenPraises.add(p.id);
+      if (!firstPraiseLoad) {
+        const t = tasks.find(x => x.id === p.taskId);
+        const who = person(p.from).name;
+        tsChime();
+        tsToast(p.emoji + " " + who + " cheered you on for " + (t ? t.name : "that"));
+        tsNotify("TooSynced", who + " praised you: " + (t ? t.name : "nice work"));
+      }
+      Store.markPraiseSeen(p.id);
+    });
+  }
+  function paintPresence(hereUids) {
+    members.forEach(m => {
+      const el = document.querySelector('[data-presence="' + m.uid + '"]');
+      if (el) el.classList.toggle("here", (hereUids || []).includes(m.uid));
+    });
+  }
 
-  /* ---------- view switching (14: morph with directional push) ---------- */
-  const VIEW_ORDER = ["day", "week", "month"];
+  /* ---------- view switching ---------- */
+  const ORDER = ["day", "week", "month"];
   $$(".viewseg button").forEach(b => b.addEventListener("click", () => {
     if (b.dataset.view === currentView) return;
-    const forward = VIEW_ORDER.indexOf(b.dataset.view) > VIEW_ORDER.indexOf(currentView);
+    const forward = ORDER.indexOf(b.dataset.view) > ORDER.indexOf(currentView);
     currentView = b.dataset.view;
     $$(".viewseg button").forEach(x => x.classList.toggle("on", x === b));
     render();
-    const incoming = $("#view-" + currentView);
-    incoming.style.setProperty("--in-x", forward ? "22px" : "-22px");
-    incoming.classList.remove("view-in");
-    void incoming.offsetWidth; /* restart animation */
-    incoming.classList.add("view-in");
-  }));
-  $$(".mobile-tabs button").forEach(b => b.addEventListener("click", () => {
-    $$(".mobile-tabs button").forEach(x => x.classList.toggle("on", x === b));
-    $("#day-cols").dataset.mtab = b.dataset.mtab;
+    const el = $("#view-" + currentView);
+    el.style.setProperty("--in-x", forward ? "22px" : "-22px");
+    el.classList.remove("view-in"); void el.offsetWidth; el.classList.add("view-in");
   }));
   $("#nav-prev").addEventListener("click", () => shift(-1));
   $("#nav-next").addEventListener("click", () => shift(1));
   $("#nav-today").addEventListener("click", () => { currentDate = TS.today(); render(); });
   function shift(dir) {
-    const n = currentView === "day" ? 1 : currentView === "week" ? 7 : 30;
     if (currentView === "month") {
       const d = TS.parseDate(currentDate); d.setMonth(d.getMonth() + dir);
       currentDate = TS.fmtDate(d);
-    } else currentDate = TS.addDays(currentDate, dir * n);
+    } else currentDate = TS.addDays(currentDate, dir * (currentView === "week" ? 7 : 1));
     render();
   }
 
   /* ---------- render ---------- */
   function render() {
-    if (!me) return;
-    renderStreakPill();
+    if (!me || !sync) return;
+    paintStreak();
     $("#view-day").classList.toggle("hidden", currentView !== "day");
     $("#view-week").classList.toggle("hidden", currentView !== "week");
     $("#view-month").classList.toggle("hidden", currentView !== "month");
@@ -121,158 +136,128 @@
     if (currentView === "month") renderMonth();
   }
 
-  function tasksFor(uid, dateStr) {
-    return tasks
-      .filter(t => t.owner === uid && TS.occursOn(t, dateStr))
-      .sort((a, b) => a.time.localeCompare(b.time));
-  }
-  function isDone(t, dateStr) { return completions.has(t.id + "_" + dateStr); }
-
-  function renderStreakPill() {
-    const streak = sharedStreak();
-    $("#streak-label").textContent = streak > 0 ? streak + "-day streak" : "start your streak";
-  }
-  function dayComplete(uid, dateStr) {
-    const list = tasksFor(uid, dateStr);
-    if (!list.length) return null; // no tasks that day: doesn't count either way
-    return list.every(t => isDone(t, dateStr));
+  function dayComplete(uid, d) {
+    const list = tasksFor(uid, d);
+    if (!list.length) return null;
+    return list.every(t => isDone(t, d));
   }
   function sharedStreak() {
     let streak = 0, d = TS.today();
-    /* today only counts if already fully done; otherwise start from yesterday */
-    const t1 = dayComplete(me.uid, d), t2 = partner ? dayComplete(partner.uid, d) : null;
-    if ((t1 === true || t1 === null) && (t2 === true || t2 === null) && (t1 === true || t2 === true)) streak++;
+    const states = () => members.map(m => dayComplete(m.uid, d));
+    const st = states();
+    if (st.every(x => x !== false) && st.some(x => x === true)) streak++;
     d = TS.addDays(d, -1);
     for (let i = 0; i < 365; i++) {
-      const a = dayComplete(me.uid, d), b = partner ? dayComplete(partner.uid, d) : null;
-      if (a === false || b === false) break;
-      if (a === null && b === null) break;
-      streak++;
-      d = TS.addDays(d, -1);
+      const s2 = members.map(m => dayComplete(m.uid, d));
+      if (s2.some(x => x === false)) break;
+      if (s2.every(x => x === null)) break;
+      streak++; d = TS.addDays(d, -1);
     }
     return streak;
   }
+  function paintStreak() {
+    const s = sharedStreak();
+    $("#streak-label").textContent = s > 0 ? s + "-day streak" : "start your streak";
+  }
 
   /* ---------- DAY ---------- */
-  let lastRenderedDate = null;
+  let lastDate = null;
   function renderDay() {
-    $("#date-title").textContent = currentDate === TS.today() ? "Today · " + TS.prettyShort(currentDate) : TS.prettyDay(currentDate);
-    const dateChanged = lastRenderedDate !== currentDate;
-    lastRenderedDate = currentDate;
-    renderColumn(me.uid, "#me-tasks", "#me-count", "#me-bar", "#me-pct", true, dateChanged);
-    if (partner) renderColumn(partner.uid, "#them-tasks", "#them-count", "#them-bar", "#them-pct", false, dateChanged);
-    else $("#them-tasks").innerHTML = emptyHtml("Share your invite link on the pairing page — their day shows up here.");
-    if (dateChanged) sweepBars();
+    $("#date-title").textContent = currentDate === TS.today()
+      ? "Today · " + TS.prettyShort(currentDate) : TS.prettyDay(currentDate);
+    const changed = lastDate !== currentDate;
+    lastDate = currentDate;
+
+    /* mobile tabs, one per person */
+    const tabs = $("#mobile-tabs");
+    tabs.innerHTML = "";
+    members.forEach(m => {
+      const b = document.createElement("button");
+      b.textContent = m.uid === me.uid ? "You" : m.name.split(" ")[0];
+      b.className = m.uid === mobileTab ? "on" : "";
+      b.addEventListener("click", () => { mobileTab = m.uid; renderDay(); });
+      tabs.appendChild(b);
+    });
+
+    const cols = $("#day-cols");
+    cols.className = "cols" + (members.length > 2 ? " group-cols" : "");
+    cols.dataset.mtab = mobileTab;
+    cols.innerHTML = "";
+    members.forEach(m => cols.appendChild(personColumn(m, changed)));
+
+    if (changed) sweepBars();
     renderNowLine();
     maybeCelebrate();
+    paintPresence([]);
   }
 
-  /* 07: shimmer sweep across both bars, offset by 180ms */
-  function sweepBars() {
-    ["#me-progress", "#them-progress"].forEach(sel => {
-      const p = $(sel);
-      if (!p) return;
-      p.classList.remove("sweeping");
-      void p.offsetWidth;
-      p.classList.add("sweeping");
-    });
-  }
-
-  /* 08: the now line — creeping down the day, today only */
-  let nowLineTimer = null;
-  function renderNowLine() {
-    let line = $(".now-line");
-    const cols = $("#day-cols");
-    if (currentDate !== TS.today() || currentView !== "day") { if (line) line.remove(); return; }
-    if (!line) {
-      line = document.createElement("div");
-      line.className = "now-line";
-      line.innerHTML = '<span class="dot"></span><span class="lbl">NOW</span>';
-      cols.appendChild(line);
-    }
-    const now = new Date();
-    const mins = now.getHours() * 60 + now.getMinutes();
-    const frac = Math.min(1, Math.max(0, (mins - 300) / (1380 - 300))); /* 5:00 → 23:00 */
-    line.style.top = (6 + frac * 88) + "%";
-    if (!nowLineTimer) nowLineTimer = setInterval(renderNowLine, 60000);
-  }
-
-  /* 12: both clear today → rings meet, once per day */
-  function maybeCelebrate() {
-    if (!partner || currentDate !== TS.today()) return;
-    const myList = tasksFor(me.uid, TS.today());
-    const theirList = tasksFor(partner.uid, TS.today());
-    if (!myList.length || !theirList.length) return;
-    const allMine = myList.every(t => isDone(t, TS.today()));
-    const allTheirs = theirList.every(t => isDone(t, TS.today()));
-    if (!allMine || !allTheirs) return;
-    const key = "ts_celebrated_" + TS.today();
-    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch (e) { return; }
-    const el = document.createElement("div");
-    el.className = "celebrate";
-    el.innerHTML =
-      '<div class="rings"><span class="glow"></span>' +
-        '<svg class="rl" width="46" height="46" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#7C3AED" stroke-width="7"/></svg>' +
-        '<svg class="rr" width="46" height="46" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#F0A050" stroke-width="7"/></svg>' +
-      '</div><b>Both done today 🎉</b>';
-    document.body.appendChild(el);
-    tsChime();
-    setTimeout(() => el.remove(), 3100);
-  }
-
-  function renderColumn(uid, listSel, countSel, barSel, pctSel, isMine, cascade) {
-    const list = tasksFor(uid, currentDate);
+  function personColumn(m, cascade) {
+    const mine = m.uid === me.uid;
+    const list = tasksFor(m.uid, currentDate);
     const done = list.filter(t => isDone(t, currentDate)).length;
-    $(countSel).textContent = list.length ? done + " of " + list.length + " done" : "nothing planned";
     const pct = list.length ? Math.round(done / list.length * 100) : 0;
-    $(barSel).style.width = pct + "%";
-    $(pctSel).textContent = pct + "%";
+    const hue = m.color || tsHue(m.name);
 
-    const el = $(listSel);
-    el.innerHTML = "";
-    el.classList.toggle("cascading", !!cascade); /* 06: stagger in on day load */
+    const col = document.createElement("div");
+    col.className = "person-col" + (mine ? " mine" : " theirs");
+    col.dataset.uid = m.uid;
+    col.innerHTML =
+      '<div class="col-head">' +
+        '<div class="who">' +
+          '<span class="presence-wrap" data-presence="' + m.uid + '">' +
+            '<span class="aura1"></span><span class="aura2"></span>' + tsAvatar(m, 36) +
+          "</span>" +
+          '<div class="txt">' +
+            "<b>" + (mine ? "My day" : tsEsc(m.name) + "'s day") + "</b>" +
+            "<span>" + (list.length ? done + " of " + list.length + " done" : "nothing planned") + "</span>" +
+            '<span class="here-note" style="font-size:12px;color:var(--faint);">here now' +
+              '<span class="dots"><i></i><i></i><i></i></span></span>' +
+          "</div>" +
+        "</div>" +
+        '<div class="progress' + (mine ? "" : " theirs") + '">' +
+          '<div class="bar"><i style="width:' + pct + '%;background:' + hue + ';"></i><span class="sweep"></span></div>' +
+          '<span class="pct" style="color:' + hue + ';">' + pct + "%</span>" +
+        "</div>" +
+      "</div>" +
+      '<div class="task-list' + (cascade ? " cascading" : "") + '"></div>';
+
+    const listEl = col.querySelector(".task-list");
     if (!list.length) {
-      /* 15: drifting motes when a day is clear */
-      el.innerHTML = isMine
+      listEl.innerHTML = mine
         ? tsEmptyState("Nothing planned yet.", "Tap + to add your first task")
         : tsEmptyState("Their day is clear.", "");
-      return;
+    } else {
+      list.forEach(t => listEl.appendChild(taskRow(t, mine, m)));
+      if (done === list.length) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = tsEmptyState("All done. 💜", "");
+        wrap.firstChild.style.padding = "18px 16px";
+        listEl.appendChild(wrap.firstChild);
+      }
     }
-    /* every task done + it's my column → reward the emptiness of the checklist */
-    list.forEach(t => el.appendChild(taskRow(t, isMine)));
-    if (list.length && done === list.length) {
-      const note = document.createElement("div");
-      note.innerHTML = tsEmptyState("Nothing left today. Enjoy it. 💜", "");
-      note.firstChild.style.padding = "20px 16px";
-      el.appendChild(note.firstChild);
-    }
+    return col;
   }
 
-  function emptyHtml(msg) { return tsEmptyState(msg, ""); }
-
-  function taskRow(t, isMine) {
+  function taskRow(t, mine, owner) {
     const done = isDone(t, currentDate);
     const missed = !done && TS.isMissed(t, currentDate, completions);
     const row = document.createElement("div");
     row.className = "task" + (done ? " is-done" : "") + (missed ? " is-missed" : "");
 
+    /* check ring */
     const ring = document.createElement("button");
     ring.className = "ring";
     ring.setAttribute("aria-label", done ? "Mark not done" : "Mark done");
     if (done) ring.textContent = "✓";
-    if (isMine) {
+    if (mine) {
       ring.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!done && !tsReducedMotion()) {
-          /* 01: bloom — squash, fill, draw the tick, ripple, then settle */
           row.classList.add("blooming");
-          ring.innerHTML =
-            '<span class="ring-ripple"></span>' +
+          ring.innerHTML = '<span class="ring-ripple"></span>' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="position:relative;"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="34"/></svg>';
-          setTimeout(() => { Store.setDone(t.id, currentDate, true); }, 520);
-        } else {
-          Store.setDone(t.id, currentDate, !done);
-        }
+          setTimeout(() => Store.setDone(t.id, currentDate, true), 520);
+        } else Store.setDone(t.id, currentDate, !done);
         if (!done) tsToast("Nice. " + t.name + " ✓");
       });
     } else ring.style.pointerEvents = "none";
@@ -282,71 +267,159 @@
 
     const mid = document.createElement("div");
     mid.className = "mid";
-    const meta = missed
-      ? TS.prettyTime(t.time) + " · " + (currentDate === TS.today() ? TS.overdueLabel(t) : "missed")
-      : TS.prettyTime(t.time) + (TS.repeatLabel(t) ? " · " + TS.repeatLabel(t) : "");
+    let meta;
+    if (missed) meta = (t.time ? TS.prettyTime(t.time) + " · " : "") + (currentDate === TS.today() ? TS.overdueLabel(t) : "missed");
+    else meta = (t.time ? TS.prettyTime(t.time) : "anytime today") + (TS.repeatLabel(t) ? " · " + TS.repeatLabel(t) : "");
     mid.innerHTML = '<span class="name"></span><span class="meta"></span>';
     mid.querySelector(".name").textContent = t.name;
     mid.querySelector(".meta").textContent = meta;
 
     row.append(ring, emoji, mid);
 
-    if (missed && isMine) {
+    /* praise counts anyone can see */
+    const pr = praisesFor(t.id, currentDate);
+    if (pr.length) {
       const chip = document.createElement("span");
-      chip.className = "miss-chip"; chip.textContent = "MISSED";
+      chip.className = "praise-count";
+      const emojis = [...new Set(pr.map(p => p.emoji))].slice(0, 3).join("");
+      chip.textContent = emojis + " " + pr.length;
+      chip.title = pr.map(p => person(p.from).name).join(", ");
       row.appendChild(chip);
     }
-    if (!isMine && missed && t.allowNudge !== false) {
-      const nb = document.createElement("button");
-      nb.className = "btn btn--nudge"; nb.innerHTML = '<span class="bell">🔔</span> Nudge';
-      nb.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const sent = await Store.nudgesSentToday();
-        if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today — keep it kind 💜"); return; }
-        /* 03: bell wobbles, dot flies to their avatar, avatar bumps */
-        nb.classList.add("wobbling");
-        tsFlyDot(nb, document.getElementById("col-them-av"));
-        nb.disabled = true;
-        setTimeout(() => { nb.textContent = "Sent 💜"; }, 450);
-        await Store.sendNudge(t.owner, t.id, currentDate);
-        tsChime();
-        tsToast("Nudge sent to " + (partner ? partner.name : "your partner"));
-      });
-      row.appendChild(nb);
-    } else if (!isMine && !done && !missed && t.allowNudge !== false) {
-      const nb = document.createElement("button");
-      nb.className = "bell-quiet"; nb.textContent = "🔔";
-      nb.setAttribute("aria-label", "Send a reminder");
-      nb.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const sent = await Store.nudgesSentToday();
-        if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today — keep it kind 💜"); return; }
-        nb.classList.add("wobbling");
-        setTimeout(() => nb.classList.remove("wobbling"), 900);
-        tsFlyDot(nb, document.getElementById("col-them-av"));
-        await Store.sendNudge(t.owner, t.id, currentDate);
-        tsChime();
-        tsToast("Reminder sent 💜");
-      });
-      row.appendChild(nb);
-    }
-    if (!isMine && !missed && !done && t.allowNudge === false) {
-      const up = document.createElement("span");
-      up.className = "upcoming"; up.textContent = "upcoming";
-      row.appendChild(up);
-    }
 
-    if (isMine) {
+    if (mine) {
+      if (missed) {
+        const chip = document.createElement("span");
+        chip.className = "miss-chip"; chip.textContent = "MISSED";
+        row.appendChild(chip);
+      } else if (!t.time && !done) {
+        const chip = document.createElement("span");
+        chip.className = "anytime-chip"; chip.textContent = "ANYTIME";
+        row.appendChild(chip);
+      }
       row.dataset.clickable = "1";
       row.style.cursor = "pointer";
       row.addEventListener("click", () => openModal(t));
+    } else {
+      /* someone else's task */
+      if (done) {
+        /* praise them */
+        const pb = document.createElement("button");
+        pb.className = "praise-btn"; pb.textContent = "👏";
+        pb.setAttribute("aria-label", "Send praise");
+        pb.addEventListener("click", (e) => { e.stopPropagation(); openPraise(pb, t, owner); });
+        row.appendChild(pb);
+      } else if (t.allowNudge !== false) {
+        /* nudge any task they haven't finished — louder once it's overdue */
+        const nb = document.createElement("button");
+        if (missed) {
+          nb.className = "btn btn--nudge";
+          nb.innerHTML = '<span class="bell">🔔</span> Nudge';
+        } else {
+          nb.className = "bell-quiet"; nb.textContent = "🔔";
+          nb.setAttribute("aria-label", "Nudge " + owner.name);
+          nb.title = "Nudge " + owner.name;
+        }
+        nb.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const sent = await Store.nudgesSentToday();
+          if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today — keep it kind 💜"); return; }
+          nb.classList.add("wobbling");
+          const target = row.closest(".person-col").querySelector(".presence-wrap .av");
+          tsFlyDot(nb, target || nb);
+          if (missed) { nb.disabled = true; setTimeout(() => { nb.textContent = "Sent 💜"; }, 450); }
+          else setTimeout(() => nb.classList.remove("wobbling"), 900);
+          await Store.sendNudge(t.owner, t.id, currentDate);
+          tsChime();
+          tsToast("Nudge sent to " + owner.name);
+        });
+        row.appendChild(nb);
+      }
     }
     return row;
   }
 
-  /* ---------- WEEK ---------- */
+  /* ---------- praise picker ---------- */
+  function openPraise(anchor, task, owner) {
+    document.querySelectorAll(".praise-picker").forEach(p => p.remove());
+    const box = document.createElement("div");
+    box.className = "praise-picker";
+    PRAISE.forEach(em => {
+      const b = document.createElement("button");
+      b.textContent = em;
+      b.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        box.remove();
+        flyPraise(anchor, em);
+        await Store.sendPraise(task.owner, task.id, currentDate, em);
+        tsToast("Sent " + em + " to " + owner.name);
+      });
+      box.appendChild(b);
+    });
+    document.body.appendChild(box);
+    const r = anchor.getBoundingClientRect();
+    const w = 5 * 42 + 12;
+    box.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2)) + "px";
+    box.style.top = (r.top + window.scrollY - 54) + "px";
+    setTimeout(() => document.addEventListener("click", function close() {
+      box.remove(); document.removeEventListener("click", close);
+    }), 0);
+  }
+  function flyPraise(anchor, emoji) {
+    if (tsReducedMotion()) return;
+    const r = anchor.getBoundingClientRect();
+    const el = document.createElement("span");
+    el.className = "praise-fly"; el.textContent = emoji;
+    el.style.left = (r.left + r.width / 2 - 13) + "px";
+    el.style.top = (r.top - 6) + "px";
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
+  }
+
+  /* ---------- ambience ---------- */
+  function sweepBars() {
+    $$(".progress").forEach(p => { p.classList.remove("sweeping"); void p.offsetWidth; p.classList.add("sweeping"); });
+  }
+  let nowTimer = null;
+  function renderNowLine() {
+    let line = document.querySelector(".now-line");
+    const cols = $("#day-cols");
+    if (currentDate !== TS.today() || currentView !== "day" || members.length > 2) {
+      if (line) line.remove(); return;
+    }
+    if (!line) {
+      line = document.createElement("div");
+      line.className = "now-line";
+      line.innerHTML = '<span class="dot"></span><span class="lbl">NOW</span>';
+      cols.appendChild(line);
+    } else cols.appendChild(line);
+    const n = new Date();
+    const mins = n.getHours() * 60 + n.getMinutes();
+    const frac = Math.min(1, Math.max(0, (mins - 300) / (1380 - 300)));
+    line.style.top = (6 + frac * 88) + "%";
+    if (!nowTimer) nowTimer = setInterval(renderNowLine, 60000);
+  }
+  function maybeCelebrate() {
+    if (members.length < 2 || currentDate !== TS.today()) return;
+    const states = members.map(m => dayComplete(m.uid, TS.today()));
+    if (states.some(x => x !== true)) return;
+    const key = "ts_celebrated_" + sync.id + "_" + TS.today();
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch (e) { return; }
+    const el = document.createElement("div");
+    el.className = "celebrate";
+    el.innerHTML =
+      '<div class="rings"><span class="glow"></span>' +
+        '<svg class="rl" width="46" height="46" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#7C3AED" stroke-width="7"/></svg>' +
+        '<svg class="rr" width="46" height="46" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#F0A050" stroke-width="7"/></svg>' +
+      '</div><b>' + (sync.kind === "group" ? "Everyone's done today 🎉" : "Both done today 🎉") + "</b>";
+    document.body.appendChild(el);
+    tsChime();
+    setTimeout(() => el.remove(), 3100);
+  }
+
+  /* ---------- WEEK / MONTH ---------- */
   function renderWeek() {
-    const start = TS.addDays(currentDate, -TS.weekday(currentDate)); // Sunday
+    const start = TS.addDays(currentDate, -TS.weekday(currentDate));
     $("#date-title").textContent = "Week of " + TS.prettyShort(start);
     const grid = $("#week-grid");
     grid.innerHTML = "";
@@ -354,18 +427,15 @@
       const d = TS.addDays(start, i);
       const cell = document.createElement("div");
       cell.className = "week-day" + (d === TS.today() ? " is-today" : "");
-      const myList = tasksFor(me.uid, d);
-      const theirList = partner ? tasksFor(partner.uid, d) : [];
-      const dayName = TS.parseDate(d).toLocaleDateString("en-US", { weekday: "short" });
-      let html = '<div class="wd"><span>' + dayName + '</span><span class="num">' + TS.parseDate(d).getDate() + "</span></div>";
-      const both = [...myList.map(t => ({ t, mine: true })), ...theirList.map(t => ({ t, mine: false }))]
-        .sort((a, b) => a.t.time.localeCompare(b.t.time));
-      both.slice(0, 4).forEach(({ t }) => {
-        const done = isDone(t, d);
-        const missed = !done && TS.isMissed(t, d, completions);
-        html += '<div class="mini ' + (done ? "d" : missed ? "m" : "") + '"><span class="dot"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(t.name) + "</span></div>";
+      const all = members.flatMap(m => tasksFor(m.uid, d).map(t => ({ t, m })));
+      let html = '<div class="wd"><span>' + TS.parseDate(d).toLocaleDateString("en-US", { weekday: "short" }) +
+        '</span><span class="num">' + TS.parseDate(d).getDate() + "</span></div>";
+      all.slice(0, 4).forEach(({ t }) => {
+        const dn = isDone(t, d), ms = !dn && TS.isMissed(t, d, completions);
+        html += '<div class="mini ' + (dn ? "d" : ms ? "m" : "") + '"><span class="dot"></span>' +
+          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + tsEsc(t.name) + "</span></div>";
       });
-      if (both.length > 4) html += '<span class="more">+' + (both.length - 4) + " more</span>";
+      if (all.length > 4) html += '<span class="more">+' + (all.length - 4) + " more</span>";
       cell.innerHTML = html;
       cell.addEventListener("click", () => {
         currentDate = d; currentView = "day";
@@ -376,7 +446,6 @@
     }
   }
 
-  /* ---------- MONTH ---------- */
   function renderMonth() {
     const d = TS.parseDate(currentDate);
     $("#date-title").textContent = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -386,23 +455,19 @@
       const el = document.createElement("div"); el.className = "mh"; el.textContent = h; grid.appendChild(el);
     });
     const first = new Date(d.getFullYear(), d.getMonth(), 1);
-    const startOffset = first.getDay();
-    const cells = 42;
-    for (let i = 0; i < cells; i++) {
-      const cd = new Date(d.getFullYear(), d.getMonth(), 1 - startOffset + i);
+    const off = first.getDay();
+    for (let i = 0; i < 42; i++) {
+      const cd = new Date(d.getFullYear(), d.getMonth(), 1 - off + i);
       const ds = TS.fmtDate(cd);
-      const inMonth = cd.getMonth() === d.getMonth();
       const cell = document.createElement("div");
-      cell.className = "month-cell" + (inMonth ? "" : " out") + (ds === TS.today() ? " is-today" : "");
+      cell.className = "month-cell" + (cd.getMonth() === d.getMonth() ? "" : " out") + (ds === TS.today() ? " is-today" : "");
       let dots = "";
-      const myList = tasksFor(me.uid, ds);
-      const theirList = partner ? tasksFor(partner.uid, ds) : [];
-      myList.slice(0, 3).forEach(t => {
-        const done = isDone(t, ds);
-        const missed = !done && TS.isMissed(t, ds, completions);
-        dots += "<i class='" + (done ? "d" : missed ? "m" : "") + "'></i>";
+      members.forEach(m => {
+        tasksFor(m.uid, ds).slice(0, 2).forEach(t => {
+          const dn = isDone(t, ds), ms = !dn && TS.isMissed(t, ds, completions);
+          dots += "<i class='" + (dn ? "d" : ms ? "m" : "") + "'></i>";
+        });
       });
-      theirList.slice(0, 2).forEach(t => { dots += "<i class='" + (isDone(t, ds) ? "d" : "p") + "'></i>"; });
       cell.innerHTML = "<span>" + cd.getDate() + "</span><div class='dots'>" + dots + "</div>";
       cell.addEventListener("click", () => {
         currentDate = ds; currentView = "day";
@@ -412,8 +477,6 @@
       grid.appendChild(cell);
     }
   }
-
-  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
   /* ============================================================
      TASK MODAL
@@ -425,19 +488,50 @@
     row.innerHTML = "";
     ICONS.forEach(ic => {
       const b = document.createElement("button");
+      b.type = "button";
       b.className = "icon-opt" + (ic === modalIcon ? " on" : "");
       b.textContent = ic;
       b.addEventListener("click", () => { modalIcon = ic; buildIconRow(); });
       row.appendChild(b);
     });
+    /* your own emoji — type or paste anything */
+    const custom = document.createElement("input");
+    custom.className = "icon-custom" + (ICONS.includes(modalIcon) ? "" : " on");
+    custom.maxLength = 4;
+    custom.placeholder = "✎";
+    custom.setAttribute("aria-label", "Type your own emoji");
+    if (!ICONS.includes(modalIcon)) custom.value = modalIcon;
+    custom.addEventListener("input", () => {
+      const v = custom.value.trim();
+      if (v) {
+        modalIcon = v;
+        $$("#icon-row .icon-opt").forEach(x => x.classList.remove("on"));
+        custom.classList.add("on");
+      }
+    });
+    row.appendChild(custom);
+  }
+
+  function syncWhenUI() {
+    $$("#when-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.when === modalWhen));
+    $("#t-time").classList.toggle("hidden", modalWhen !== "time");
+  }
+  function syncRepeatUI() {
+    $$("#repeat-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.rep === modalRepeat));
+    $("#day-picks").classList.toggle("hidden", modalRepeat !== "custom");
+    $$("#day-picks .day-pick").forEach(p => p.classList.toggle("on", modalDays.has(Number(p.dataset.d))));
   }
 
   function openModal(task) {
     editingId = task ? task.id : null;
     $("#modal-title").textContent = task ? "Edit task" : "New task";
-    $("#modal-sub").textContent = "Adding to my day" + (partner ? " · " + partner.name + " will see it" : "");
+    const others = members.filter(m => m.uid !== me.uid);
+    $("#modal-sub").textContent = others.length
+      ? "Adding to my day · " + (sync.kind === "group" ? "your group" : others[0].name) + " will see it"
+      : "Adding to my day";
     $("#t-name").value = task ? task.name : "";
-    $("#t-time").value = task ? task.time : "18:30";
+    modalWhen = task ? (task.time ? "time" : "anytime") : "anytime";
+    $("#t-time").value = (task && task.time) ? task.time : "18:30";
     $("#t-date").value = task ? (task.date || TS.today()) : currentDate;
     $("#t-note").value = task ? (task.note || "") : "";
     modalIcon = task ? (task.icon || ICONS[0]) : ICONS[0];
@@ -446,26 +540,21 @@
     modalAllowNudge = task ? task.allowNudge !== false : true;
     $("#nudge-switch").classList.toggle("on", modalAllowNudge);
     $("#modal-delete").classList.toggle("hidden", !task);
-    buildIconRow();
-    syncRepeatUI();
+    buildIconRow(); syncWhenUI(); syncRepeatUI();
     modal.classList.add("open");
-    $("#fab-add").classList.add("open"); /* 13: + rotates to ✕ */
-    setTimeout(() => $("#t-name").focus(), 220);
+    $("#fab-add").classList.add("open");
+    /* only pull focus on a real keyboard — on touch it yanks the sheet around */
+    if (window.matchMedia("(any-pointer:fine)").matches) {
+      setTimeout(() => $("#t-name").focus(), 260);
+    }
   }
   function closeModal() {
     modal.classList.remove("open");
     $("#fab-add").classList.remove("open");
   }
 
-  function syncRepeatUI() {
-    $$("#repeat-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.rep === modalRepeat));
-    $("#day-picks").classList.toggle("hidden", modalRepeat !== "custom");
-    $$("#day-picks .day-pick").forEach(p => p.classList.toggle("on", modalDays.has(Number(p.dataset.d))));
-  }
-
-  $$("#repeat-pills .pill").forEach(p => p.addEventListener("click", () => {
-    modalRepeat = p.dataset.rep; syncRepeatUI();
-  }));
+  $$("#when-pills .pill").forEach(p => p.addEventListener("click", () => { modalWhen = p.dataset.when; syncWhenUI(); }));
+  $$("#repeat-pills .pill").forEach(p => p.addEventListener("click", () => { modalRepeat = p.dataset.rep; syncRepeatUI(); }));
   $$("#day-picks .day-pick").forEach(p => p.addEventListener("click", () => {
     const d = Number(p.dataset.d);
     modalDays.has(d) ? modalDays.delete(d) : modalDays.add(d);
@@ -477,8 +566,7 @@
   });
 
   $("#fab-add").addEventListener("click", () => {
-    if (modal.classList.contains("open")) closeModal();
-    else openModal(null);
+    modal.classList.contains("open") ? closeModal() : openModal(null);
   });
   $("#modal-close").addEventListener("click", closeModal);
   $("#modal-cancel").addEventListener("click", closeModal);
@@ -487,17 +575,17 @@
 
   $("#modal-save").addEventListener("click", async () => {
     const name = $("#t-name").value.trim();
-    if (!name) { $("#t-name").focus(); return; }
+    if (!name) { tsToast("Give it a name first"); $("#t-name").focus(); return; }
+    if (modalRepeat === "custom" && !modalDays.size) { tsToast("Pick at least one day"); return; }
     const data = {
       name,
-      icon: modalIcon,
-      time: $("#t-time").value || "09:00",
+      icon: modalIcon || "✨",
+      time: modalWhen === "time" ? ($("#t-time").value || "09:00") : null,
       date: $("#t-date").value || TS.today(),
       repeat: { type: modalRepeat, days: modalRepeat === "custom" ? Array.from(modalDays) : [] },
       note: $("#t-note").value.trim(),
       allowNudge: modalAllowNudge
     };
-    if (modalRepeat === "custom" && !modalDays.size) { tsToast("Pick at least one day"); return; }
     if (editingId) await Store.updateTask(editingId, data);
     else await Store.addTask(data);
     closeModal();

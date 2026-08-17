@@ -23,6 +23,7 @@ const TS = {
     return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
   },
   prettyTime(hhmm) {
+    if (!hhmm) return "anytime";
     const [h, m] = hhmm.split(":").map(Number);
     const ampm = h >= 12 ? "PM" : "AM";
     const h12 = h % 12 === 0 ? 12 : h % 12;
@@ -59,10 +60,13 @@ const TS = {
     const todayStr = TS.today();
     if (dateStr > todayStr) return false;
     if (dateStr < todayStr) return true;
+    /* no set time = "anytime today" — never overdue during the day */
+    if (!task.time) return false;
     const [h, m] = task.time.split(":").map(Number);
     return (now.getHours() * 60 + now.getMinutes()) > (h * 60 + m);
   },
   overdueLabel(task) {
+    if (!task.time) return "missed";
     const [h, m] = task.time.split(":").map(Number);
     const now = new Date();
     const diff = (now.getHours() * 60 + now.getMinutes()) - (h * 60 + m);
@@ -197,4 +201,138 @@ window.tsEmptyState = (msg, sub) => {
     '<span style="position:relative;">' + msg + '</span>' +
     (sub ? '<span style="position:relative;font-size:13px;color:var(--faint);">' + sub + '</span>' : '') +
     '</div>';
+};
+
+/* ============================================================
+   Avatars, photos, sync helpers
+   ============================================================ */
+
+/* render a person's avatar: photo if they have one, else initial */
+window.tsAvatar = (person, size, cls) => {
+  const px = size || 36;
+  const name = (person && person.name) || "?";
+  const photo = person && person.photo;
+  const extra = cls ? " " + cls : "";
+  if (photo) {
+    return '<span class="av av--photo' + extra + '" style="width:' + px + 'px;height:' + px + 'px;">' +
+      '<img src="' + photo + '" alt="' + tsEsc(name) + '"></span>';
+  }
+  const hue = (person && person.color) || tsHue(name);
+  return '<span class="av' + extra + '" style="width:' + px + 'px;height:' + px + 'px;font-size:' +
+    Math.round(px * 0.4) + 'px;background:' + hue + ';">' + tsEsc(name.charAt(0).toUpperCase()) + '</span>';
+};
+
+/* palette: index 0 is always "you", the rest cycle so nobody collides */
+const TS_HUES = ["#7C3AED", "#F0A050", "#22A06B", "#2F86C7", "#C2477C", "#E8912F", "#4C1D95", "#8A6420"];
+window.tsHue = (name) => {
+  let h = 0;
+  for (let i = 0; i < (name || "?").length; i++) h = (h * 31 + name.charCodeAt(i)) % 9973;
+  return TS_HUES[1 + (h % (TS_HUES.length - 1))];
+};
+/* give every member of a sync a distinct colour, "me" first and always purple */
+window.tsColorMembers = (members, myUid) => {
+  members.forEach((m, i) => { m.color = m.uid === myUid ? TS_HUES[0] : TS_HUES[1 + ((i - 1 + TS_HUES.length - 1) % (TS_HUES.length - 1))]; });
+  return members;
+};
+
+window.tsEsc = (s) => { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; };
+
+/* compress a picked image to a small square dataURL (keeps Firestore docs tiny) */
+window.tsReadPhoto = (file, px) => new Promise((resolve, reject) => {
+  const size = px || 160;
+  if (!file || !file.type.startsWith("image/")) { reject(new Error("Pick an image file.")); return; }
+  const r = new FileReader();
+  r.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const ctx = c.getContext("2d");
+      const side = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => reject(new Error("Couldn't read that image."));
+    img.src = r.result;
+  };
+  r.onerror = () => reject(new Error("Couldn't read that file."));
+  r.readAsDataURL(file);
+});
+
+/* label for a sync in lists / switchers */
+window.tsSyncLabel = (s) => {
+  if (!s) return "";
+  const n = (s.memberUids || []).length;
+  return s.kind === "group" ? n + " people" : (n < 2 ? "waiting for 1 more" : "just you two");
+};
+
+/* guard used by every app page: needs auth AND an active sync */
+function tsRequireSync(cb) {
+  Store.init().then(() => {
+    Store.onAuth(async (user) => {
+      if (!user) { location.href = "index.html"; return; }
+      if (!user.name || user.name === "You") { location.href = "profile.html"; return; }
+      const sync = await Store.getSync();
+      if (!sync) { location.href = "syncs.html"; return; }
+      cb(user, sync);
+    });
+  });
+}
+
+/* ============================================================
+   Sync switcher — dropdown in the topbar of every app page
+   ============================================================ */
+window.tsSyncSwitcher = (mountSel, activeSync, onSwitch) => {
+  const mount = document.querySelector(mountSel);
+  if (!mount) return;
+  const icon = (s) => s.photo ? '<img src="' + s.photo + '" alt="">' : (s.kind === "group" ? "👥" : "🫂");
+
+  mount.innerHTML =
+    '<button class="sync-btn" id="sync-btn">' +
+      '<span class="sync-avatar" style="width:30px;height:30px;border-radius:10px;font-size:15px;">' + icon(activeSync) + '</span>' +
+      '<span class="txt"><b>' + tsEsc(activeSync.name) + '</b><span>' + tsSyncLabel(activeSync) + '</span></span>' +
+      '<span class="caret">▾</span>' +
+    '</button>' +
+    '<div class="sync-menu" id="sync-menu"></div>';
+
+  const btn = mount.querySelector("#sync-btn");
+  const menu = mount.querySelector("#sync-menu");
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.classList.toggle("open");
+  });
+  document.addEventListener("click", () => menu.classList.remove("open"));
+  menu.addEventListener("click", (e) => e.stopPropagation());
+
+  Store.watchSyncs((list) => {
+    menu.innerHTML = "";
+    (list || []).forEach(s => {
+      const b = document.createElement("button");
+      b.className = "item" + (s.id === activeSync.id ? " on" : "");
+      b.innerHTML =
+        '<span class="sync-avatar" style="width:32px;height:32px;border-radius:11px;font-size:16px;">' + icon(s) + '</span>' +
+        '<span class="txt"><b>' + tsEsc(s.name) + '</b><span>' + tsSyncLabel(s) + '</span></span>' +
+        (s.id === activeSync.id ? '<span style="color:var(--primary);font-weight:800;">✓</span>' : '');
+      b.addEventListener("click", async () => {
+        if (s.id === activeSync.id) { menu.classList.remove("open"); return; }
+        await Store.setActiveSync(s.id);
+        if (onSwitch) onSwitch(s); else location.reload();
+      });
+      menu.appendChild(b);
+    });
+    const sep = document.createElement("div");
+    sep.className = "sep";
+    menu.appendChild(sep);
+    const add = document.createElement("a");
+    add.className = "item new";
+    add.href = "syncs.html";
+    add.innerHTML = '<span class="sync-avatar" style="width:32px;height:32px;border-radius:11px;font-size:18px;">+</span><span>New or join a sync</span>';
+    menu.appendChild(add);
+    const inv = document.createElement("a");
+    inv.className = "item new";
+    inv.href = "invite.html";
+    inv.innerHTML = '<span class="sync-avatar" style="width:32px;height:32px;border-radius:11px;font-size:15px;">🔗</span><span>Invite people to this sync</span>';
+    menu.appendChild(inv);
+  });
 };

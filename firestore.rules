@@ -2,35 +2,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Each user can read/write only their own profile
+    // Your own profile only
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Pairs: members can read/write; anyone signed in can read to join by
-    // invite code, and can add themselves as the 2nd member only.
-    match /pairs/{pairId} {
+    match /syncs/{syncId} {
+      // signed-in people can read to look up an invite code
       allow read: if request.auth != null;
+
       allow create: if request.auth != null
         && request.resource.data.memberUids.size() == 1
-        && request.resource.data.memberUids[0] == request.auth.uid;
+        && request.resource.data.memberUids[0] == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid;
+
       allow update: if request.auth != null && (
-        // existing member editing (e.g. name change)
+        // existing member editing the sync
         resource.data.memberUids.hasAny([request.auth.uid])
         ||
-        // second person joining: adds exactly themselves
+        // someone joining: they may only add themselves, and a Two Sync caps at 2
         (
-          resource.data.memberUids.size() == 1
-          && request.resource.data.memberUids.size() == 2
-          && request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          && request.resource.data.memberUids.size() == resource.data.memberUids.size() + 1
           && request.resource.data.memberUids.hasAny([request.auth.uid])
+          && (resource.data.kind == 'group' || resource.data.memberUids.size() < 2)
         )
       );
 
-      // Everything inside a pair is members-only
+      allow delete: if false;
+
+      // tasks, completions, nudges, praises, messages, presence: members only
       match /{sub=**} {
         allow read, write: if request.auth != null
-          && get(/databases/$(database)/documents/pairs/$(pairId)).data.memberUids.hasAny([request.auth.uid]);
+          && get(/databases/$(database)/documents/syncs/$(syncId)).data.memberUids.hasAny([request.auth.uid]);
       }
     }
   }

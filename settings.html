@@ -19,11 +19,12 @@
   <span class="logo logo--md">T<svg width="23" height="15" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
   <nav class="topnav">
     <a href="app.html">Schedule</a>
+    <a href="chat.html">Chat</a>
     <a href="streaks.html">Streaks</a>
     <a href="settings.html" class="on">Settings</a>
   </nav>
   <div class="right">
-    <span class="av av--me av--32" id="me-avatar">·</span>
+    <div class="sync-switch" id="sync-switch"></div>
   </div>
 </div>
 
@@ -32,26 +33,43 @@
 
     <div class="settings-card">
       <b>Profile</b>
-      <div class="field">
-        <label for="s-name">Your name</label>
-        <input class="input" id="s-name" placeholder="Your name" maxlength="30">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <span id="s-avatar"></span>
+        <div style="display:flex;flex-direction:column;">
+          <b style="font-size:16px;" id="s-display-name">—</b>
+          <span style="font-size:13px;color:var(--faint);" id="s-birthday-note">No birthday set</span>
+        </div>
       </div>
       <div class="field">
         <label for="s-phone">Phone number <span class="opt">optional</span></label>
         <input class="input" type="tel" id="s-phone" placeholder="(951) 555-0134" autocomplete="tel">
       </div>
-      <button class="btn btn--primary" id="btn-save-name" style="align-self:flex-start;">Save profile</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a class="btn btn--ghost" href="profile.html">Edit name, photo &amp; birthday</a>
+        <button class="btn btn--primary" id="btn-save-phone">Save phone</button>
+      </div>
     </div>
 
     <div class="settings-card">
-      <b>Your pair</b>
-      <div class="step done" id="pair-status"><span class="n">✓</span> <span id="pair-status-text">Checking…</span></div>
+      <b>This sync</b>
+      <div id="sync-info" style="display:flex;flex-direction:column;gap:11px;"></div>
+      <div class="field" style="gap:9px;">
+        <label for="s-sync-name">Sync name</label>
+        <div class="invite-row">
+          <input class="input" id="s-sync-name" maxlength="40" style="flex:1;">
+          <button class="btn btn--ghost" id="btn-rename">Rename</button>
+        </div>
+      </div>
       <div class="field" style="gap:9px;">
         <span class="invite-label">INVITE LINK</span>
         <div class="invite-row">
           <div class="invite-link" id="invite-link">—</div>
           <button class="btn btn--ghost" id="btn-copy">Copy</button>
         </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a class="btn btn--ghost" href="syncs.html">All my syncs</a>
+        <button class="btn btn--ghost" id="btn-leave" style="color:#B03A52;">Leave this sync</button>
       </div>
     </div>
 

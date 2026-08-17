@@ -40,7 +40,7 @@
   function clearError() { $("#auth-error").classList.add("hidden"); }
 
   function next() {
-    location.href = joinCode ? ("pair.html?join=" + encodeURIComponent(joinCode)) : "pair.html";
+    location.href = joinCode ? ("invite.html?join=" + encodeURIComponent(joinCode)) : "profile.html";
   }
 
   /* ---------- interactive preview card ---------- */
@@ -81,8 +81,8 @@
         el.style.setProperty("--in-x", forward ? "22px" : "-22px");
         el.classList.remove("view-in"); void el.offsetWidth; el.classList.add("view-in");
         $("#preview-title").textContent =
-          cur === "day" ? "Your person's Tuesday" :
-          cur === "week" ? "Your person's week" : "Your month together";
+          cur === "day" ? "Your crew today" :
+          cur === "week" ? "Your crew this week" : "Your month together";
       });
     });
   }
@@ -96,7 +96,7 @@
       $("#demo-hint").innerHTML = "Demo mode is on — any email or phone works, nothing is sent anywhere.";
     }
     if (joinCode) {
-      $("#hero-title").innerHTML = "Your person<br>invited <span>you</span>.";
+      $("#hero-title").innerHTML = "You've been<br><span>invited</span>.";
       $("#live-pill-text").textContent = "Invite code " + joinCode.toUpperCase() + " ready to join";
       setMode("signup");
     } else {
@@ -116,10 +116,10 @@
     /* already signed in? skip ahead */
     Store.onAuth(async (user) => {
       if (user) {
-        const pair = await Store.getPair();
-        if (joinCode) next();
-        else if (pair && pair.joined) location.href = "app.html";
-        else if (pair) location.href = "pair.html";
+        if (joinCode) { next(); return; }
+        if (!user.name || user.name === "You") { location.href = "profile.html"; return; }
+        const sync = await Store.getSync();
+        location.href = sync ? "app.html" : "syncs.html";
       }
     });
 

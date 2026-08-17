@@ -45,13 +45,27 @@ notifications when the app is closed** need Firebase Cloud Messaging plus a
 small Cloud Function or Cloudflare Worker to send them — that's the next
 upgrade, and also the moment before app-store wrapping with Capacitor.
 
+## How syncs work
+
+A **sync** is a shared space. Two kinds:
+
+- **Two Sync** — exactly two people, side-by-side days.
+- **Group Sync** — three or more, a column per person, plus group chat.
+
+You can be in as many syncs as you want and switch between them from the
+pill in the top-right of every page. Each sync has its own name, photo,
+invite code, tasks, streaks, and chat.
+
 ## File map
 
-- `index.html` + `assets/js/auth.js` — sign in / create account (email, Google, phone)
-- `pair.html` + `pair.js` — invite link, join by code, waiting state
-- `app.html` + `app.js` — schedule (day/week/month), check-offs, nudges, task modal
+- `index.html` + `auth.js` — sign in / create account (email, Google, phone)
+- `profile.html` + `profile.js` — name, photo, birthday
+- `syncs.html` + `syncs.js` — your syncs, create Two/Group, join by code
+- `invite.html` + `invite.js` — invite link + who's in the sync
+- `app.html` + `app.js` — schedule, check-offs, nudges, praise, task modal
+- `chat.html` + `chat.js` — messages inside a sync
 - `streaks.html` + `streaks.js` — streaks, heatmaps, weekly bars, insights
-- `settings.html` + `settings.js` — name, phone, invite link, notifications, sign out
+- `settings.html` + `settings.js` — profile, sync name, invite, leave sync
 - `assets/js/config.js` — keys + mode flags (the only file you edit)
 - `assets/js/store.js` — data layer (demo + Firebase behind one API)
-- `firestore.rules` — paste into Firebase console
+- `firestore.rules` — paste into Firebase console (**updated for syncs — re-paste it**)

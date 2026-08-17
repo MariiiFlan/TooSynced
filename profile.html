@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FBFAFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/main.css">
+<title>Your profile — TooSynced</title>
+</head>
+<body>
+
+<div class="setup-wrap">
+  <div class="setup-card">
+    <div>
+      <h1 id="setup-title">Set up your profile</h1>
+      <p class="sub" id="setup-sub">This is how everyone in your syncs will see you.</p>
+    </div>
+
+    <div class="error-msg hidden" id="p-error"></div>
+
+    <div class="photo-pick round">
+      <div class="preview" id="pfp-preview">?</div>
+      <div class="acts">
+        <button class="btn btn--ghost" type="button" id="btn-pick-photo">Choose a photo</button>
+        <button class="btn btn--ghost hidden" type="button" id="btn-clear-photo" style="color:#B03A52;">Remove</button>
+        <input type="file" accept="image/*" id="pfp-input" class="hidden">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="p-name">What should people call you?</label>
+      <input class="input" id="p-name" placeholder="Kamari" maxlength="30" autocomplete="nickname">
+    </div>
+
+    <div class="field">
+      <label for="p-birthday">Birthday <span class="opt">optional</span></label>
+      <input class="input" type="date" id="p-birthday">
+    </div>
+
+    <button class="btn btn--primary btn--block" id="btn-save-profile">Continue</button>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script>
+  if (!CONFIG.DEMO_MODE) {
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
+  }
+</script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/profile.js"></script>
+</body>
+</html>

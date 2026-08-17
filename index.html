@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>TooSynced — build discipline together</title>
-<meta name="description" content="Share your schedule with your person. Check things off, keep the streak, send a kind nudge when the day slips.">
+<title>TooSynced — stay on track together</title>
+<meta name="description" content="Sync with one person or a whole crew. Share your schedules, check things off, and keep each other going.">
 <meta name="theme-color" content="#FBFAFF">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.png">
@@ -24,9 +24,9 @@
 
   <div class="auth-main">
     <div class="auth-hero">
-      <div class="auth-live-pill"><span class="dot"></span> <span id="live-pill-text">Partners are checking off tasks right now</span></div>
-      <h1 id="hero-title">We're in this<br>together, <span>daily</span>.</h1>
-      <p class="sub">Share your schedule with your person. Check things off, keep the streak, send a kind nudge when the day slips.</p>
+      <div class="auth-live-pill"><span class="dot"></span> <span id="live-pill-text">People are checking off tasks right now</span></div>
+      <h1 id="hero-title">Stay on track,<br><span>together</span>.</h1>
+      <p class="sub">Sync with one person or a whole crew. Share your schedules, check things off, and keep each other going.</p>
 
       <form class="auth-form" id="auth-form">
         <div class="error-msg hidden" id="auth-error"></div>
@@ -65,7 +65,7 @@
             <span style="flex:1;height:1px;background:var(--border);"></span>
           </div>
           <button class="btn btn--outline btn--block" type="button" id="btn-create-account">Create an account</button>
-          <span style="font-size:13px;color:var(--faint);font-weight:400;text-align:center;line-height:1.4;">You'll need an account before you can pair up.</span>
+          <span style="font-size:13px;color:var(--faint);font-weight:400;text-align:center;line-height:1.4;">You'll need an account before you can start a sync.</span>
         </div>
 
         <span class="auth-switch" id="demo-hint"></span>
@@ -76,7 +76,7 @@
       <div class="head">
         <div class="who">
           <span class="av av--them av--36" style="font-size:18px;">💜</span>
-          <div class="txt"><b id="preview-title">Your person's Tuesday</b><span>partner view</span></div>
+          <div class="txt"><b id="preview-title">Your crew today</b><span>partner view</span></div>
         </div>
         <div class="seg" id="preview-seg">
           <span class="on" data-pview="day">Day</span><span data-pview="week">Week</span><span data-pview="month">Month</span>
