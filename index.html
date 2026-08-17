@@ -18,8 +18,8 @@
 
 <div class="auth-page">
   <div class="auth-top">
-    <span class="logo logo--lg"><svg class="mark" width="24" height="24" viewBox="0 0 100 100" fill="none" aria-hidden="true" style="align-self:center;margin-right:7px;"><rect x="12" y="18" width="76" height="68" rx="18" stroke="#B79AF7" stroke-width="9"/><path d="M12 36h76" stroke="#B79AF7" stroke-width="9"/><circle cx="41" cy="61" r="15" stroke="#7C3AED" stroke-width="9"/><circle cx="59" cy="61" r="15" stroke="#4C1D95" stroke-width="9"/></svg>T<svg width="27" height="18" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
-    <span class="alt" id="auth-switch-top">New here? <a href="#" id="switch-mode-link">Create a pair</a></span>
+    <span class="logo logo--lg">T<svg width="27" height="18" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
+    <span class="alt" id="auth-switch-top">First time? <a href="#" id="switch-mode-link">Create an account</a></span>
   </div>
 
   <div class="auth-main">
@@ -56,6 +56,16 @@
             <input class="input" type="text" inputmode="numeric" id="fp-code" placeholder="6-digit code" maxlength="6" style="font-family:'IBM Plex Mono',monospace;letter-spacing:.2em;">
             <button class="btn btn--primary" type="button" id="btn-confirm-code">Verify & sign in</button>
           </div>
+        </div>
+
+        <div id="create-row" style="display:flex;flex-direction:column;gap:12px;padding-top:14px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="flex:1;height:1px;background:var(--border);"></span>
+            <span style="font-size:13px;color:var(--faint);font-weight:500;">first time here?</span>
+            <span style="flex:1;height:1px;background:var(--border);"></span>
+          </div>
+          <button class="btn btn--outline btn--block" type="button" id="btn-create-account">Create an account</button>
+          <span style="font-size:13px;color:var(--faint);font-weight:400;text-align:center;line-height:1.4;">You'll need an account before you can pair up.</span>
         </div>
 
         <span class="auth-switch" id="demo-hint"></span>

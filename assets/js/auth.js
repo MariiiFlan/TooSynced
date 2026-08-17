@@ -15,8 +15,10 @@
     $("#fp-name").classList.toggle("hidden", m === "signin");
     $("#f-phone-opt").classList.toggle("hidden", m === "signin");
     $("#btn-email").textContent = m === "signin" ? "Continue with email" : "Create account";
+    /* the big create-account CTA only makes sense while signing in */
+    $("#create-row").classList.toggle("hidden", m === "signup");
     $("#auth-switch-top").innerHTML = m === "signin"
-      ? 'New here? <a href="#" id="switch-mode-link">Create a pair</a>'
+      ? 'First time? <a href="#" id="switch-mode-link">Create an account</a>'
       : 'Have an account? <a href="#" id="switch-mode-link">Sign in</a>';
     $("#switch-mode-link").addEventListener("click", (e) => {
       e.preventDefault(); setMode(mode === "signin" ? "signup" : "signin");
@@ -104,6 +106,12 @@
 
     document.querySelectorAll("#method-seg span").forEach(t =>
       t.addEventListener("click", () => { clearError(); setMethod(t.dataset.method); }));
+
+    $("#btn-create-account").addEventListener("click", () => {
+      clearError();
+      setMode("signup");
+      (method === "email" ? $("#f-name") : $("#fp-name")).focus();
+    });
 
     /* already signed in? skip ahead */
     Store.onAuth(async (user) => {

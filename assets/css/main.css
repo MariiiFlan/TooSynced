@@ -681,3 +681,11 @@ textarea.input{min-height:66px;resize:vertical;}
 .preview-mini-month{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;min-height:212px;}
 .preview-mini-month i{border-radius:8px;aspect-ratio:1.15;}
 .auth-preview .seg span{cursor:pointer;}
+
+/* preview card header stacks better on narrow screens */
+@media(max-width:520px){
+  .auth-preview .head{flex-direction:column;align-items:flex-start;gap:12px;}
+  .auth-preview .head .seg{align-self:stretch;}
+  .auth-preview .head .seg span{flex:1;text-align:center;}
+  .auth-preview .who .txt b{font-size:15px;white-space:nowrap;}
+}
