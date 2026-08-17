@@ -219,14 +219,16 @@ const DemoStore = (() => {
       const db = load(); const s = active(db);
       const targets = (targetSyncIds && targetSyncIds.length) ? targetSyncIds : [s.id];
       const originId = tsRid("o");
-      let firstId = null;
+      let firstId = null, added = 0;
       targets.forEach(sid => {
         if (!db.syncs[sid]) return;
         const id = tsRid("t");
         if (!firstId) firstId = id;
         db.tasks[id] = { ...t, id, originId, syncId: sid, owner: db.user.uid, createdAt: Date.now() };
+        added++;
       });
-      save(db); emit("tasks"); return firstId;
+      save(db); emit("tasks");
+      return { id: firstId, originId, added, failed: targets.length - added, failures: [] };
     },
     async updateTask(id, patch, everywhere) {
       const db = load();
@@ -614,11 +616,20 @@ const FirebaseStore = (() => {
       const targets = (targetSyncIds && targetSyncIds.length) ? targetSyncIds : [syncId];
       const originId = tsRid("o");
       const payload = { ...t, originId, owner: uid, createdAt: Date.now() };
-      const refs = await Promise.all(targets.map(sid =>
-        db.collection("syncs").doc(sid).collection("tasks").add(payload).catch(() => null)
-      ));
-      const first = refs.find(r => r);
-      return first ? first.id : null;
+      const results = await Promise.all(targets.map(async sid => {
+        try {
+          const ref = await db.collection("syncs").doc(sid).collection("tasks").add(payload);
+          return { sid, ok: true, id: ref.id };
+        } catch (e) {
+          console.error("[TooSynced] could not add task to sync", sid, e);
+          return { sid, ok: false, error: e && (e.code || e.message) };
+        }
+      }));
+      const good = results.filter(r => r.ok);
+      const bad = results.filter(r => !r.ok);
+      /* the sync you're looking at has to work - anything else is a partial */
+      if (!good.length) throw new Error((bad[0] && bad[0].error) || "Couldn't save that task.");
+      return { id: good[0].id, originId, added: good.length, failed: bad.length, failures: bad };
     },
     async updateTask(id, patch, everywhere) {
       await syncRef().collection("tasks").doc(id).update(patch);

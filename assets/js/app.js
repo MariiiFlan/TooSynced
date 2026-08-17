@@ -638,6 +638,19 @@
     detailTask = task;
     paintDetail(task, owner);
     dModal.classList.add("open");
+    /* if this is an all-syncs task and a sync is missing a copy
+       (new sync made after the task), quietly top it up */
+    if (task.owner === me.uid && task.scope === "all" && task.originId && Store.fanOutTask) {
+      Store.listSyncs().then(list => {
+        if (!list || list.length < 2) return;
+        Store.fanOutTask(task.originId, {
+          name: task.name, icon: task.icon, time: task.time, date: task.date,
+          repeat: task.repeat, place: task.place || "", note: task.note || "",
+          allowNudge: task.allowNudge !== false, rsvp: !!task.rsvp,
+          private: false, scope: "all"
+        }, list.map(x => x.id)).catch(() => {});
+      }).catch(() => {});
+    }
   }
   function closeDetail() { dModal.classList.remove("open"); detailTask = null; }
 
@@ -802,6 +815,10 @@
     $("#nudge-switch").classList.toggle("on", modalAllowNudge);
     $("#modal-delete").classList.toggle("hidden", !task);
     buildIconRow(); syncWhenUI(); syncRepeatUI();
+    /* refresh the list so "all my syncs" always reflects reality */
+    Store.listSyncs().then(list => {
+      if (list && list.length) { mySyncs = list; buildScopeUI(); }
+    }).catch(() => {});
     modal.classList.add("open");
     $("#fab-add").classList.add("open");
     /* only pull focus on a real keyboard - on touch it yanks the sheet around */
@@ -818,9 +835,14 @@
     $$("#scope-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.scope === modalScope));
     const list = $("#scope-pick-list");
     list.classList.toggle("hidden", modalScope !== "pick");
+    const n = mySyncs.length || 1;
+    const names = mySyncs.map(x => x.name);
     const hints = {
-      sync: "Everyone in this sync can see it.",
-      all: "Added to every sync you're in.",
+      sync: "Only people in " + sync.name + " see it.",
+      all: n > 1
+        ? "Adds it to all " + n + " of your syncs: " + names.slice(0, 3).join(", ") +
+          (names.length > 3 ? " +" + (names.length - 3) + " more" : "")
+        : "You're only in 1 sync right now, so this behaves the same as \"This sync\". Make another sync and it'll appear in both.",
       pick: "Choose which syncs it shows up in.",
       private: "Only you can see this, even inside a sync."
     };
@@ -901,22 +923,44 @@
       targets = [sync.id].concat(Array.from(modalPickIds).filter(id => id !== sync.id));
     }
 
-    if (editingId) {
-      await Store.updateTask(editingId, data, true);
-      /* if it was widened to more syncs, add the missing copies */
-      if (targets && targets.length > 1) {
-        const existing = tasks.find(t => t.id === editingId);
-        if (existing && existing.originId && Store.fanOutTask) {
-          await Store.fanOutTask(existing.originId, data, targets);
+    let result = null;
+    try {
+      if (editingId) {
+        await Store.updateTask(editingId, data, true);
+        if (targets && targets.length > 1) {
+          const existing = tasks.find(t => t.id === editingId);
+          if (existing && existing.originId && Store.fanOutTask) {
+            await Store.fanOutTask(existing.originId, data, targets);
+          }
         }
+      } else {
+        result = await Store.addTask(data, targets);
       }
-    } else {
-      await Store.addTask(data, targets);
+    } catch (err) {
+      tsToast(err.message || "Couldn't save that task");
+      return;
     }
     closeModal();
-    const n = targets ? targets.length : 1;
-    tsToast(editingId ? "Task updated"
-      : n > 1 ? "Added to " + n + " syncs" : data.private ? "Private task added 🔒" : "Task added");
+
+    /* say exactly what happened - no more guessing whether it fanned out */
+    if (editingId) { tsToast("Task updated"); return; }
+    if (data.private) { tsToast("Private task added 🔒"); return; }
+
+    const added = result && result.added ? result.added : 1;
+    const failed = result && result.failed ? result.failed : 0;
+
+    if (failed) {
+      tsToast("Saved here, but " + failed + " other sync" + (failed === 1 ? "" : "s") + " rejected it - check the console");
+    } else if (modalScope === "all" && all.length <= 1) {
+      /* the honest case: "all my syncs" when you only have one */
+      tsToast("Task added. You're only in 1 sync right now, so that's the only place it shows.");
+    } else if (added > 1) {
+      const names = all.filter(x => targets.includes(x.id)).map(x => x.name);
+      tsToast("Added to " + (names.length ? names.slice(0, 2).join(", ") +
+        (names.length > 2 ? " +" + (names.length - 2) + " more" : "") : added + " syncs"));
+    } else {
+      tsToast("Task added");
+    }
   });
 
   $("#modal-delete").addEventListener("click", async () => {
