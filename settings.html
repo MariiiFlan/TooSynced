@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Settings — TooSynced</title>
 <meta name="theme-color" content="#FBFAFF">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/favicon.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest?v=5">
+<link rel="icon" href="icons/favicon.png?v=5">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=5">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css">
+<link rel="stylesheet" href="assets/css/main.css?v=5">
 </head>
 <body>
 
@@ -33,21 +33,19 @@
 
     <div class="settings-card">
       <b>Profile</b>
-      <div style="display:flex;align-items:center;gap:14px;">
+      <a class="sync-card" href="profile.html" style="text-decoration:none;color:inherit;">
         <span id="s-avatar"></span>
-        <div style="display:flex;flex-direction:column;">
-          <b style="font-size:16px;" id="s-display-name">—</b>
-          <span style="font-size:13px;color:var(--faint);" id="s-birthday-note">No birthday set</span>
-        </div>
-      </div>
+        <span class="body">
+          <b id="s-display-name">—</b>
+          <span id="s-birthday-note">Add a photo, name and birthday</span>
+        </span>
+        <span style="color:var(--faint);font-size:18px;">›</span>
+      </a>
       <div class="field">
         <label for="s-phone">Phone number <span class="opt">optional</span></label>
         <input class="input" type="tel" id="s-phone" placeholder="(951) 555-0134" autocomplete="tel">
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <a class="btn btn--ghost" href="profile.html">Edit name, photo &amp; birthday</a>
-        <button class="btn btn--primary" id="btn-save-phone">Save phone</button>
-      </div>
+      <button class="btn btn--primary" id="btn-save-phone" style="align-self:flex-start;">Save phone</button>
     </div>
 
     <div class="settings-card">
@@ -89,7 +87,7 @@
   </div>
 </div>
 
-<script src="assets/js/config.js"></script>
+<script src="assets/js/config.js?v=5"></script>
 <script>
   if (!CONFIG.DEMO_MODE) {
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
@@ -97,8 +95,8 @@
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
   }
 </script>
-<script src="assets/js/store.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/settings.js"></script>
+<script src="assets/js/store.js?v=5"></script>
+<script src="assets/js/ui.js?v=5"></script>
+<script src="assets/js/settings.js?v=5"></script>
 </body>
 </html>

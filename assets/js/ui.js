@@ -237,27 +237,74 @@ window.tsColorMembers = (members, myUid) => {
 
 window.tsEsc = (s) => { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; };
 
-/* compress a picked image to a small square dataURL (keeps Firestore docs tiny) */
-window.tsReadPhoto = (file, px) => new Promise((resolve, reject) => {
+/* Compress a picked image to a small square dataURL.
+   Tries createImageBitmap first — it decodes more formats than <img>,
+   respects EXIF orientation, and doesn't need a data URL round-trip. */
+window.tsReadPhoto = async (file, px) => {
   const size = px || 160;
-  if (!file || !file.type.startsWith("image/")) { reject(new Error("Pick an image file.")); return; }
-  const r = new FileReader();
-  r.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = c.height = size;
-      const ctx = c.getContext("2d");
-      const side = Math.min(img.width, img.height);
-      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-      resolve(c.toDataURL("image/jpeg", 0.82));
-    };
-    img.onerror = () => reject(new Error("Couldn't read that image."));
-    img.src = r.result;
-  };
-  r.onerror = () => reject(new Error("Couldn't read that file."));
-  r.readAsDataURL(file);
-});
+  if (!file) throw new Error("No file picked.");
+  if (file.size > 25 * 1024 * 1024) throw new Error("That image is huge — pick one under 25MB.");
+
+  const name = (file.name || "").toLowerCase();
+  const looksHeic = /\.(heic|heif)$/.test(name) || /heic|heif/.test(file.type || "");
+
+  let src = null;
+
+  /* 1. modern path: decode straight from the File */
+  if (window.createImageBitmap) {
+    try {
+      src = await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (e) { src = null; }
+  }
+
+  /* 2. fallback: object URL into an <img> */
+  if (!src) {
+    src = await new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+
+  /* 3. last resort: data URL (some older mobile browsers only like this) */
+  if (!src) {
+    src = await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = r.result;
+      };
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(file);
+    });
+  }
+
+  if (!src) {
+    throw new Error(looksHeic
+      ? "This browser can't open HEIC photos (iPhone's default). Screenshot it, or set Camera → Formats → Most Compatible, then try again."
+      : "Couldn't open that image. Try a JPG or PNG.");
+  }
+
+  const w = src.width || src.naturalWidth;
+  const h = src.height || src.naturalHeight;
+  if (!w || !h) throw new Error("That image came through empty. Try another one.");
+
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  const side = Math.min(w, h);
+  ctx.drawImage(src, (w - side) / 2, (h - side) / 2, side, side, 0, 0, size, size);
+  if (src.close) src.close();
+
+  const out = c.toDataURL("image/jpeg", 0.82);
+  if (!out || out.length < 100) throw new Error("Couldn't process that image. Try another one.");
+  return out;
+};
 
 /* label for a sync in lists / switchers */
 window.tsSyncLabel = (s) => {
@@ -271,7 +318,6 @@ function tsRequireSync(cb) {
   Store.init().then(() => {
     Store.onAuth(async (user) => {
       if (!user) { location.href = "index.html"; return; }
-      if (!user.name || user.name === "You") { location.href = "profile.html"; return; }
       const sync = await Store.getSync();
       if (!sync) { location.href = "syncs.html"; return; }
       cb(user, sync);

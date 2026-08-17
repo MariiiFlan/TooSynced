@@ -14,7 +14,6 @@
   Store.init().then(() => {
     Store.onAuth(async (user) => {
       if (!user) { location.href = "index.html"; return; }
-      if (!user.name || user.name === "You") { location.href = "profile.html"; return; }
       me = user;
       $("#me-avatar").innerHTML = tsAvatar(user, 32);
       Store.watchSyncs(render);
@@ -70,11 +69,16 @@
   $("#sync-photo-input").addEventListener("change", async (e) => {
     const f = e.target.files[0];
     if (!f) return;
+    $("#create-error").classList.add("hidden");
+    const btn = $("#btn-sync-photo");
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Working…";
     try {
       syncPhoto = await tsReadPhoto(f, 160);
       $("#sync-photo-preview").innerHTML = '<img src="' + syncPhoto + '" alt="">';
       $("#btn-sync-photo-clear").classList.remove("hidden");
     } catch (err) { showErr("#create-error", err.message); }
+    finally { btn.disabled = false; btn.textContent = label; e.target.value = ""; }
   });
   $("#btn-sync-photo-clear").addEventListener("click", () => {
     syncPhoto = null;

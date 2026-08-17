@@ -40,7 +40,7 @@
   function clearError() { $("#auth-error").classList.add("hidden"); }
 
   function next() {
-    location.href = joinCode ? ("invite.html?join=" + encodeURIComponent(joinCode)) : "profile.html";
+    location.href = joinCode ? ("invite.html?join=" + encodeURIComponent(joinCode)) : "syncs.html";
   }
 
   /* ---------- interactive preview card ---------- */
@@ -117,7 +117,6 @@
     Store.onAuth(async (user) => {
       if (user) {
         if (joinCode) { next(); return; }
-        if (!user.name || user.name === "You") { location.href = "profile.html"; return; }
         const sync = await Store.getSync();
         location.href = sync ? "app.html" : "syncs.html";
       }

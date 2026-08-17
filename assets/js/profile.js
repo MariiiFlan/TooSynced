@@ -30,11 +30,9 @@
         if (profile.birthday) $("#p-birthday").value = profile.birthday;
         photo = profile.photo || null;
         /* editing an existing profile rather than first run */
-        if (profile.name && profile.name !== "You") {
-          $("#setup-title").textContent = "Your profile";
-          $("#setup-sub").textContent = "Update how everyone in your syncs sees you.";
-          $("#btn-save-profile").textContent = "Save profile";
-        }
+        $("#setup-title").textContent = "Your profile";
+        $("#setup-sub").textContent = "Update how everyone in your syncs sees you.";
+        $("#btn-save-profile").textContent = "Save profile";
       }
       paintPreview();
     });
@@ -46,8 +44,13 @@
   $("#pfp-input").addEventListener("change", async (e) => {
     const f = e.target.files[0];
     if (!f) return;
+    $("#p-error").classList.add("hidden");
+    const btn = $("#btn-pick-photo");
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Working…";
     try { photo = await tsReadPhoto(f, 160); paintPreview(); }
     catch (err) { showError(err.message); }
+    finally { btn.disabled = false; btn.textContent = label; e.target.value = ""; }
   });
   $("#btn-clear-photo").addEventListener("click", () => { photo = null; $("#pfp-input").value = ""; paintPreview(); });
 
@@ -62,8 +65,8 @@
       await Store.updateProfile({
         name, photo, birthday: $("#p-birthday").value || null
       });
-      const sync = await Store.getSync();
-      location.href = sync ? "app.html" : "syncs.html";
+      tsToast("Profile saved");
+      setTimeout(() => history.length > 1 ? history.back() : (location.href = "settings.html"), 600);
     } catch (err) {
       showError(err.message || "Couldn't save that.");
       $("#btn-save-profile").disabled = false;

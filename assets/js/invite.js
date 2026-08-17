@@ -13,7 +13,6 @@
   Store.init().then(() => {
     Store.onAuth(async (user) => {
       if (!user) { location.href = "index.html"; return; }
-      if (!user.name || user.name === "You") { location.href = "profile.html"; return; }
       me = user;
       $("#me-avatar").innerHTML = tsAvatar(user, 32);
 

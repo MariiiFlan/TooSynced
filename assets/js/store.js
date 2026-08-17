@@ -329,8 +329,11 @@ const FirebaseStore = (() => {
         const ref = db.collection("users").doc(uid);
         let snap = await ref.get();
         if (!snap.exists) {
+          const fallback = u.displayName
+            || (u.email ? u.email.split("@")[0] : null)
+            || (u.phoneNumber ? "Me " + u.phoneNumber.slice(-4) : "Me");
           await ref.set({
-            name: u.displayName || "You", birthday: null, photo: null,
+            name: fallback, birthday: null, photo: null,
             phone: u.phoneNumber || null, syncIds: [], activeSyncId: null
           });
           snap = await ref.get();
@@ -370,7 +373,7 @@ const FirebaseStore = (() => {
       const ref = db.collection("users").doc(cred.user.uid);
       if (!(await ref.get()).exists) {
         await ref.set({
-          name: name || "You", birthday: null, photo: null,
+          name: name || ("Me " + (cred.user.phoneNumber || "").slice(-4)).trim(), birthday: null, photo: null,
           phone: cred.user.phoneNumber || null, syncIds: [], activeSyncId: null
         });
       }

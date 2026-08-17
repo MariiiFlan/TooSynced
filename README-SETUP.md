@@ -45,6 +45,20 @@ notifications when the app is closed** need Firebase Cloud Messaging plus a
 small Cloud Function or Cloudflare Worker to send them — that's the next
 upgrade, and also the moment before app-store wrapping with Capacitor.
 
+## If the app looks broken or stale after an update
+
+Browsers and the service worker cache aggressively. Every asset is
+version-stamped (`main.css?v=5`), so a normal refresh picks up changes — but
+if you ever see old styling, a missing function, or the old icon:
+
+- **Desktop**: Ctrl+Shift+R (Cmd+Shift+R on Mac), or DevTools → Application →
+  Service Workers → *Unregister*, then reload.
+- **Phone (installed PWA)**: delete the home-screen icon, reload the site in
+  the browser, then Add to Home Screen again.
+
+When you deploy a change, bump the `?v=` number in the HTML files and the
+`CACHE` name in `sw.js` — that forces everyone onto the new files.
+
 ## How syncs work
 
 A **sync** is a shared space. Two kinds:
