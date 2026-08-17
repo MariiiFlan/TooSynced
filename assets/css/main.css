@@ -901,3 +901,84 @@ textarea.input{min-height:66px;resize:vertical;}
   .m-chip .nm{display:none;}
   .m-chip{padding:2px 4px;}
 }
+
+/* ============================================================
+   PRO: paywall, badges, themes, chores, streak repair
+   ============================================================ */
+.pro-badge{
+  display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#8B4BF0,#5B21B6);
+  color:#fff;font-size:12px;font-weight:800;letter-spacing:.04em;border-radius:999px;padding:5px 12px;
+}
+.pro-badge.sm{font-size:10px;padding:4px 9px;}
+.lock-chip{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;background:var(--chip-bg);
+  color:var(--primary);border:1px solid var(--chip-border);border-radius:6px;padding:4px 8px;flex:none;
+}
+.create-opt.locked{opacity:.72;position:relative;}
+.create-opt.locked .lock-chip{position:absolute;top:14px;right:14px;}
+
+/* paywall */
+.paywall{max-width:480px;}
+.paywall-head{
+  padding:30px 28px 24px;text-align:center;color:#fff;
+  background:linear-gradient(150deg,#8B4BF0 0%,#7C3AED 45%,#5B21B6 100%);
+}
+.paywall-head h2{font-size:26px;font-weight:800;letter-spacing:-.03em;margin-top:14px;}
+.paywall-head p{font-size:38px;font-weight:800;margin-top:8px;letter-spacing:-.03em;}
+.paywall-head p span{font-size:17px;font-weight:500;opacity:.85;}
+.paywall-body{gap:12px !important;}
+.pro-row{display:flex;gap:13px;align-items:flex-start;padding:10px;border-radius:14px;}
+.pro-row.on{background:var(--chip-bg);}
+.pro-row .ic{font-size:22px;flex:none;width:30px;text-align:center;}
+.pro-row div{display:flex;flex-direction:column;gap:2px;}
+.pro-row b{font-size:15px;font-weight:700;}
+.pro-row span{font-size:13.5px;color:var(--muted);font-weight:400;line-height:1.45;}
+
+/* streak repair */
+.repair-btn{
+  display:inline-flex;align-items:center;gap:6px;background:var(--miss-bg);border:1.5px solid var(--miss-border);
+  color:var(--miss-accent);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;
+  animation:amberBreathe 3.2s ease-in-out infinite;
+}
+.repair-btn:hover{border-color:var(--nudge);}
+
+/* themes */
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.theme-opt{
+  display:flex;align-items:center;gap:10px;border:1.5px solid var(--border);border-radius:14px;
+  padding:12px 14px;font-size:14px;font-weight:600;background:#fff;text-align:left;
+}
+.theme-opt:hover{border-color:var(--lav);}
+.theme-opt.on{border-color:var(--primary);background:var(--chip-bg);}
+.theme-opt .sw{width:22px;height:22px;border-radius:8px;flex:none;}
+
+/* chores */
+.chores-card{
+  background:#fff;border:1px solid var(--border);border-radius:var(--r-card);
+  padding:18px 20px;display:flex;flex-direction:column;gap:12px;margin-bottom:16px;
+}
+.chores-head{display:flex;align-items:center;gap:10px;}
+.chores-head b{font-size:16px;font-weight:700;}
+.chores-edit{margin-left:auto;font-size:13px;font-weight:700;color:var(--primary);}
+.chores-empty{font-size:14px;color:var(--muted);line-height:1.5;}
+.chore-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}
+.chore-row{
+  display:flex;align-items:center;gap:11px;background:var(--bg-alt);border-radius:14px;padding:12px 14px;
+}
+.chore-row.mine{background:var(--chip-bg);border:1.5px solid var(--chip-border);}
+.chore-row .ic{font-size:20px;flex:none;}
+.chore-row .nm{display:flex;flex-direction:column;min-width:0;flex:1;}
+.chore-row .nm b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chore-row .nm span{font-size:11.5px;color:var(--faint);font-weight:500;}
+.chore-row .whose{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--deep);flex:none;}
+
+@media(max-width:820px){
+  .paywall-head{padding:24px 20px 20px;}
+  .paywall-head h2{font-size:22px;}
+  .chore-rows{grid-template-columns:1fr;}
+  .theme-grid{grid-template-columns:1fr 1fr;}
+}
+
+/* keep the location pin readable in narrow group columns */
+.loc-pin{max-width:190px;}
+.cols.group-cols .loc-pin{max-width:150px;font-size:11px;}

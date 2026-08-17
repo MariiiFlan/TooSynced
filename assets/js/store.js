@@ -43,10 +43,10 @@ function tsRid(p) { return (p || "id") + "_" + Math.random().toString(36).slice(
    ============================================================ */
 const DemoStore = (() => {
   const KEY = "toosynced_demo_v2";
-  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [] };
+  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [] };
 
   function blank() {
-    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], messages: {}, rsvps: {}, locations: {}, nudgeCount: {} };
+    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
   }
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
@@ -66,6 +66,7 @@ const DemoStore = (() => {
     if (kind === "messages" || kind === "all") L.messages.forEach(cb => cb(((db.messages || {})[sid] || []).slice().sort((a, b) => a.at - b.at)));
     if (kind === "rsvps" || kind === "all") L.rsvps.forEach(cb => cb(Object.values(db.rsvps || {}).filter(inSync)));
     if (kind === "locations" || kind === "all") L.locations.forEach(cb => cb(db.locations || {}));
+    if (kind === "repairs" || kind === "all") L.repairs.forEach(cb => cb(Object.values(db.repairs || {}).filter(inSync)));
     if (kind === "sync" || kind === "all") L.sync.forEach(cb => cb(s));
     if (kind === "syncs" || kind === "all") L.syncs.forEach(cb => cb(Object.values(db.syncs)));
   }
@@ -154,6 +155,7 @@ const DemoStore = (() => {
       db.syncs[id] = {
         id, name: name || (kind === "group" ? "New group sync" : "New sync"),
         kind: kind || "two", photo: photo || null, inviteCode: tsCode(),
+        theme: "lavender", chores: null,
         ownerUid: db.user.uid, memberUids: [db.user.uid],
         members: { [db.user.uid]: { name: db.user.name, photo: db.user.photo || null } },
         createdAt: Date.now()
@@ -248,6 +250,37 @@ const DemoStore = (() => {
         Object.keys(db.completions).forEach(c => { if (c.startsWith(k + "_")) delete db.completions[c]; });
       });
       save(db); emit("all");
+    },
+
+    /* ---------- streak repair ---------- */
+    watchRepairs(cb) { L.repairs.push(cb); emit("repairs"); },
+    async repairStreak(dateStr) {
+      const db = load(); const s = active(db);
+      if (!db.repairs) db.repairs = {};
+      db.repairs[s.id + "_" + dateStr] = { syncId: s.id, date: dateStr, by: db.user.uid, at: Date.now() };
+      const mk = TSPlan.monthKey();
+      db.user.streakRepairs = db.user.streakRepairs || {};
+      db.user.streakRepairs[mk] = (db.user.streakRepairs[mk] || 0) + 1;
+      save(db); emit("all");
+    },
+
+    /* ---------- chore rotation ---------- */
+    async setChores(chores) {
+      const db = load(); const s = active(db);
+      db.syncs[s.id].chores = chores;
+      save(db); emit("sync");
+    },
+
+    /* add copies of an existing task into any syncs missing it */
+    async fanOutTask(originId, data, targetSyncIds) {
+      const db = load();
+      const have = new Set(Object.values(db.tasks).filter(t => t.originId === originId).map(t => t.syncId));
+      (targetSyncIds || []).forEach(sid => {
+        if (have.has(sid) || !db.syncs[sid]) return;
+        const id = tsRid("t");
+        db.tasks[id] = { ...data, id, originId, syncId: sid, owner: db.user.uid, createdAt: Date.now() };
+      });
+      save(db); emit("tasks");
     },
 
     /* ---------- RSVP (open-invite tasks) ---------- */
@@ -487,6 +520,7 @@ const FirebaseStore = (() => {
       return {
         id, name: d.name, kind: d.kind || "two", photo: d.photo || null,
         inviteCode: d.inviteCode, ownerUid: d.ownerUid,
+        theme: d.theme || "lavender", chores: d.chores || null,
         memberUids: d.memberUids || [],
         members: d.members || {},
         joined: (d.memberUids || []).length >= 2
@@ -524,6 +558,7 @@ const FirebaseStore = (() => {
       const ref = await db.collection("syncs").add({
         name: name || (kind === "group" ? "New group sync" : "New sync"),
         kind: kind || "two", photo: photo || null, inviteCode: tsCode(),
+        theme: "lavender", chores: null,
         ownerUid: uid, memberUids: [uid],
         members: { [uid]: { name: me.name, photo: me.photo || null } },
         createdAt: Date.now()
@@ -610,6 +645,34 @@ const FirebaseStore = (() => {
           .where("originId", "==", originId).get().catch(() => null);
         if (!q) return;
         return Promise.all(q.docs.map(d => d.ref.delete().catch(() => {})));
+      }));
+    },
+
+    /* ---------- streak repair ---------- */
+    watchRepairs(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("repairs").onSnapshot(s => cb(s.docs.map(d => d.data())));
+      unsubs.push(un);
+    },
+    async repairStreak(dateStr) {
+      await syncRef().collection("repairs").doc(dateStr)
+        .set({ date: dateStr, by: uid, at: Date.now() });
+      const me = await this.getProfile();
+      const mk = TSPlan.monthKey();
+      const cur = (me && me.streakRepairs) || {};
+      cur[mk] = (cur[mk] || 0) + 1;
+      await db.collection("users").doc(uid).update({ streakRepairs: cur });
+    },
+
+    /* ---------- chore rotation ---------- */
+    async setChores(chores) { await syncRef().update({ chores }); },
+
+    async fanOutTask(originId, data, targetSyncIds) {
+      await Promise.all((targetSyncIds || []).map(async sid => {
+        const col = db.collection("syncs").doc(sid).collection("tasks");
+        const q = await col.where("originId", "==", originId).limit(1).get().catch(() => null);
+        if (q && !q.empty) return;
+        return col.add({ ...data, originId, owner: uid, createdAt: Date.now() }).catch(() => {});
       }));
     },
 

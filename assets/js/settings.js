@@ -32,6 +32,8 @@
     });
 
     if (CONFIG.DEMO_MODE) $("#btn-reset-demo").classList.remove("hidden");
+    paintPro(user);
+    paintThemes(user, s);
   });
 
   function paintSync(s) {
@@ -119,4 +121,73 @@
     await Store.resetDemo();
     location.href = "index.html";
   });
+})();
+
+/* ============================================================
+   Pro panel + sync themes
+   ============================================================ */
+(function () {
+  const $ = (s) => document.querySelector(s);
+
+  window.paintPro = function (user) {
+    const pro = TSPlan.isPro(user);
+    const price = CONFIG.PRICE.SYMBOL + CONFIG.PRICE.MONTHLY.toFixed(2);
+    $("#pro-state").innerHTML = pro
+      ? '<span class="pro-badge sm">ACTIVE</span>'
+      : '<span class="lock-chip">FREE</span>';
+    $("#pro-blurb").textContent = pro
+      ? "Group syncs, unlimited syncs, streak repair, themes, chores and weekly recaps are all on."
+      : "Group Syncs, unlimited syncs, streak repair, sync themes, chore rotation and weekly recap cards for " + price + "/month.";
+
+    const owned = TSPlan.ownedCount(user, window.__syncs || []);
+    const rows = [
+      ["Syncs you've created", owned + " of " + (pro ? "unlimited" : TSPlan.maxOwned(user))],
+      ["Nudges a day", TSPlan.nudgeAllowance(user) + " (first nudge on each task is always free)"],
+      ["Streak repairs this month",
+        TSPlan.repairsUsed(user) + " of " + TSPlan.repairsAllowed(user)]
+    ];
+    $("#pro-usage").innerHTML = rows.map(([k, v]) =>
+      '<div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;">' +
+      '<span style="color:var(--muted);">' + k + '</span><b>' + v + "</b></div>").join("");
+
+    $("#btn-pro").textContent = pro ? "Manage Pro" : "See Pro - " + price + "/mo";
+    $("#btn-pro").onclick = () => pro ? tsCheckout() : tsPaywall("Everything TooSynced can do");
+    $("#btn-pro-off").classList.toggle("hidden", !pro);
+    $("#btn-pro-off").onclick = async () => {
+      await Store.updateProfile({ pro: false });
+      tsToast("Pro turned off");
+      setTimeout(() => location.reload(), 600);
+    };
+    Store.listSyncs().then(list => {
+      window.__syncs = list;
+      const o = TSPlan.ownedCount(user, list);
+      const first = $("#pro-usage").firstChild;
+      if (first) first.querySelector("b").textContent = o + " of " + (pro ? "unlimited" : TSPlan.maxOwned(user));
+    });
+  };
+
+  window.paintThemes = function (user, sync) {
+    const pro = TSPlan.isPro(user);
+    $("#theme-sync-name").textContent = sync.name;
+    $("#theme-lock").innerHTML = pro ? "" : '<span class="lock-chip">PRO</span>';
+    const grid = $("#theme-grid");
+    grid.innerHTML = "";
+    Object.keys(TS_THEMES).forEach(key => {
+      const t = TS_THEMES[key];
+      const b = document.createElement("button");
+      b.className = "theme-opt" + ((sync.theme || "lavender") === key ? " on" : "");
+      b.innerHTML =
+        '<span class="sw" style="background:' + t.swatch + ';"></span>' +
+        "<span>" + t.name + "</span>";
+      b.addEventListener("click", async () => {
+        if (!pro) { tsPaywall("Themes set the vibe for the whole sync", "Sync themes"); return; }
+        await Store.updateSync(sync.id, { theme: key });
+        tsApplyTheme(key);
+        tsToast(t.name + " applied to " + sync.name);
+        document.querySelectorAll(".theme-opt").forEach(x => x.classList.remove("on"));
+        b.classList.add("on");
+      });
+      grid.appendChild(b);
+    });
+  };
 })();

@@ -30,7 +30,39 @@
 
     Store.watchTasks((t) => { tasks = t; render(); });
     Store.watchCompletions((c) => { completions = new Map(c.map(x => [x.taskId + "_" + x.date, x])); render(); });
+    if (window.tsApplyTheme) tsApplyTheme(s.theme || "lavender");
+
+    document.getElementById("btn-recap").addEventListener("click", () => {
+      tsRecap({ sync, members, me, stats: buildStats() });
+    });
   });
+
+  /* numbers for the shareable card */
+  function buildStats() {
+    let done = 0, occ = 0;
+    const people = members.map(m => {
+      const r = rangeStats(m.uid, 7);
+      done += r.done; occ += r.occ;
+      return { name: m.uid === me.uid ? "You" : m.name, done: r.done, color: m.color };
+    }).sort((a, b) => b.done - a.done);
+
+    const streak = members.length > 1
+      ? Math.min.apply(null, members.map(m => personStreak(m.uid)))
+      : personStreak(me.uid);
+
+    /* something with a bit of personality */
+    let fun;
+    const top = people[0], last = people[people.length - 1];
+    if (!done) fun = "Quiet week. Fresh start tomorrow.";
+    else if (people.length > 1 && top.done > last.done * 2)
+      fun = top.name + " carried this week - " + top.done + " to " + last.done + ".";
+    else if (streak >= 7) fun = streak + " days straight. Nobody has blinked.";
+    else if (people.length > 1 && top.done === last.done)
+      fun = "Dead even at " + top.done + " each. Suspicious.";
+    else fun = done + " check-offs and counting.";
+
+    return { done, rate: occ ? Math.round(done / occ * 100) : 0, streak, people, funLine: fun };
+  }
   function tasksFor(uid, d) { return tasks.filter(t => t.owner === uid && TS.occursOn(t, d)); }
   function isDone(t, d) { return completions.has(t.id + "_" + d); }
   function dayState(uid, d) {

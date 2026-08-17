@@ -17,7 +17,7 @@
   let editingId = null, modalRepeat = "none", modalDays = new Set();
   let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
   let firstNudgeLoad = true, firstPraiseLoad = true;
-  let rsvps = [], locations = {}, mySyncs = [];
+  let rsvps = [], locations = {}, mySyncs = [], repairs = [];
   let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
   let detailTask = null;
 
@@ -42,9 +42,11 @@
     Store.watchRsvps((r) => { rsvps = r; render(); if (detailTask) paintDetail(detailTask); });
     Store.watchLocations((l) => { locations = l || {}; render(); });
     Store.watchSyncs((list) => { mySyncs = list || []; });
+    if (Store.watchRepairs) Store.watchRepairs((r) => { repairs = r || []; render(); });
   });
 
   function applySync(s) {
+    if (window.tsApplyTheme) tsApplyTheme(s.theme || "lavender");
     members = (s.memberUids || []).map(u => ({ uid: u, ...(s.members[u] || { name: "?" }) }));
     /* me first, then everyone else */
     members.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : 0));
@@ -80,6 +82,20 @@
     const r = rsvpsFor(taskId, dateStr).find(x => x.uid === me.uid);
     return r ? r.status : null;
   }
+  /* one place that decides whether a nudge can go out */
+  async function tryNudge(task, ownerName, btn) {
+    const chk = TSPlan.nudgeCheck(me, nudges, me.uid, TS.today(), task.id);
+    if (!chk.ok) {
+      tsPaywall("You're out of nudges for today", "More nudges");
+      return false;
+    }
+    await Store.sendNudge(task.owner, task.id, currentDate);
+    tsChime();
+    if (chk.free) tsToast("Nudge sent to " + ownerName);
+    else tsToast("Nudge sent - " + chk.left + " left today");
+    return true;
+  }
+
   function mapUrl(place) {
     return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(place);
   }
@@ -186,23 +202,68 @@
     if (!list.length) return null;
     return list.every(t => isDone(t, d));
   }
+  function isRepaired(d) { return repairs.some(r => r.date === d); }
   function sharedStreak() {
     let streak = 0, d = TS.today();
-    const states = () => members.map(m => dayComplete(m.uid, d));
-    const st = states();
+    const st = members.map(m => dayComplete(m.uid, d));
     if (st.every(x => x !== false) && st.some(x => x === true)) streak++;
     d = TS.addDays(d, -1);
     for (let i = 0; i < 365; i++) {
       const s2 = members.map(m => dayComplete(m.uid, d));
-      if (s2.some(x => x === false)) break;
-      if (s2.every(x => x === null)) break;
+      if (s2.some(x => x === false) && !isRepaired(d)) break;
+      if (s2.every(x => x === null) && !isRepaired(d)) break;
       streak++; d = TS.addDays(d, -1);
     }
     return streak;
   }
+  /* the most recent broken day, if it is recent enough to be worth saving */
+  function brokenDay() {
+    for (let i = 1; i <= 3; i++) {
+      const d = TS.addDays(TS.today(), -i);
+      if (isRepaired(d)) continue;
+      const st = members.map(m => dayComplete(m.uid, d));
+      if (st.some(x => x === false)) return d;
+      if (st.every(x => x === null)) return null;
+    }
+    return null;
+  }
   function paintStreak() {
     const s = sharedStreak();
     $("#streak-label").textContent = s > 0 ? s + "-day streak" : "start your streak";
+
+    const broke = brokenDay();
+    const pill = document.querySelector(".streak-pill");
+    let fix = document.getElementById("btn-repair");
+    if (broke && members.length > 1) {
+      if (!fix) {
+        fix = document.createElement("button");
+        fix.id = "btn-repair";
+        fix.className = "repair-btn";
+        pill.parentNode.insertBefore(fix, pill.nextSibling);
+      }
+      fix.innerHTML = "🛟 Repair " + TS.prettyShort(broke).split(",")[0];
+      fix.title = "Your streak broke on " + TS.prettyDay(broke);
+      fix.onclick = () => askRepair(broke);
+    } else if (fix) fix.remove();
+  }
+
+  function askRepair(dateStr) {
+    if (!TSPlan.isPro(me)) {
+      tsPaywall("Save your streak", "Streak repair");
+      return;
+    }
+    if (!TSPlan.canRepair(me)) {
+      tsToast("You've used your repair this month - it resets on the 1st");
+      return;
+    }
+    const left = TSPlan.repairsAllowed(me) - TSPlan.repairsUsed(me);
+    if (!confirm("Repair the streak for " + TS.prettyDay(dateStr) + "?\n\nYou have " + left +
+                 " repair" + (left === 1 ? "" : "s") + " left this month.")) return;
+    Store.repairStreak(dateStr).then(() => {
+      tsChime();
+      tsToast("Streak saved 🛟");
+      setTimeout(() => location.reload(), 800);
+    });
   }
 
   /* ---------- DAY ---------- */
@@ -230,6 +291,10 @@
     cols.innerHTML = "";
     members.forEach(m => cols.appendChild(personColumn(m, changed)));
 
+    if (window.tsRenderChores) tsRenderChores({
+      mount: "#chores-mount", sync, members, me,
+      onSave: () => setTimeout(() => location.reload(), 500)
+    });
     if (changed) sweepBars();
     renderNowLine();
     maybeCelebrate();
@@ -339,6 +404,12 @@
       const b = document.createElement("span");
       b.textContent = "🔒"; b.title = "Private - only you see this"; b.style.fontSize = "13px";
       badges.appendChild(b);
+    } else if (t.owner === me.uid && (t.scope === "all" || t.scope === "pick")) {
+      const b = document.createElement("span");
+      b.textContent = "🔁";
+      b.title = t.scope === "all" ? "Shows in all your syncs" : "Shows in several syncs";
+      b.style.fontSize = "13px";
+      badges.appendChild(b);
     }
     if (t.rsvp) {
       const going = rsvpsFor(t.id, currentDate).filter(r => r.status === "in").length;
@@ -395,16 +466,14 @@
         }
         nb.addEventListener("click", async (e) => {
           e.stopPropagation();
-          const sent = await Store.nudgesSentToday();
-          if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today - keep it kind 💜"); return; }
+          const chk = TSPlan.nudgeCheck(me, nudges, me.uid, TS.today(), t.id);
+          if (!chk.ok) { tsPaywall("You're out of nudges for today", "More nudges"); return; }
           nb.classList.add("wobbling");
           const target = row.closest(".person-col").querySelector(".presence-wrap .av");
           tsFlyDot(nb, target || nb);
           if (missed) { nb.disabled = true; setTimeout(() => { nb.textContent = "Sent 💜"; }, 450); }
           else setTimeout(() => nb.classList.remove("wobbling"), 900);
-          await Store.sendNudge(t.owner, t.id, currentDate);
-          tsChime();
-          tsToast("Nudge sent to " + owner.name);
+          await tryNudge(t, owner.name, nb);
         });
         row.appendChild(nb);
       }
@@ -583,9 +652,13 @@
       (task.time ? TS.prettyTime(task.time) : "anytime today") +
       (TS.repeatLabel(task) ? " · " + TS.repeatLabel(task) : "") +
       (done ? " · done ✓" : "");
+    const scopeLabel = task.private ? "🔒 Private"
+      : task.scope === "all" ? "🔁 In all your syncs"
+      : task.scope === "pick" ? "🔁 In several syncs"
+      : null;
     $("#d-owner").innerHTML = tsAvatar(owner, 26) +
       "<span>" + (mine ? "Yours" : tsEsc(owner.name) + "'s task") + "</span>" +
-      (task.private ? '<span class="anytime-chip">🔒 PRIVATE</span>' : "");
+      (scopeLabel && mine ? '<span class="anytime-chip">' + scopeLabel + "</span>" : "");
 
     /* location */
     const place = $("#d-place");
@@ -635,10 +708,8 @@
     } else if (task.allowNudge !== false) {
       act.textContent = "Nudge " + owner.name + " 🔔";
       act.onclick = async () => {
-        const sent = await Store.nudgesSentToday();
-        if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today - keep it kind 💜"); return; }
-        await Store.sendNudge(task.owner, task.id, currentDate);
-        tsChime(); tsToast("Nudge sent to " + owner.name); closeDetail();
+        const sent = await tryNudge(task, owner.name);
+        if (sent) closeDetail();
       };
     } else { act.textContent = "Close"; act.onclick = closeDetail; }
     edit.onclick = () => { closeDetail(); openModal(task); };
@@ -714,8 +785,15 @@
     $("#t-place").value = task ? (task.place || "") : "";
     modalRsvp = task ? !!task.rsvp : false;
     $("#rsvp-switch").classList.toggle("on", modalRsvp);
-    modalScope = task ? (task.private ? "private" : "sync") : "sync";
+    modalScope = task ? (task.scope || (task.private ? "private" : "sync")) : "sync";
     modalPickIds = new Set();
+    if (task && task.originId && modalScope === "pick") {
+      /* re-check the syncs this task already lives in */
+      Store.listSyncs().then(list => {
+        mySyncs = list || mySyncs;
+        buildScopeUI();
+      }).catch(() => {});
+    }
     buildScopeUI();
     modalIcon = task ? (task.icon || ICONS[0]) : ICONS[0];
     modalRepeat = task ? task.repeat.type : "none";
@@ -806,15 +884,32 @@
       note: $("#t-note").value.trim(),
       allowNudge: modalAllowNudge,
       rsvp: modalRsvp,
-      private: modalScope === "private"
+      private: modalScope === "private",
+      scope: modalScope
     };
 
+    /* the sync list may not have streamed in yet - never silently fall back
+       to "this sync only" when the person asked for every sync */
+    let all = mySyncs;
+    if ((modalScope === "all" || modalScope === "pick") && !all.length) {
+      try { all = await Store.listSyncs(); } catch (e) { all = []; }
+    }
     let targets = null;
-    if (modalScope === "all") targets = mySyncs.map(x => x.id);
-    else if (modalScope === "pick") targets = [sync.id].concat(Array.from(modalPickIds));
+    if (modalScope === "all") {
+      targets = all.length ? all.map(x => x.id) : [sync.id];
+    } else if (modalScope === "pick") {
+      targets = [sync.id].concat(Array.from(modalPickIds).filter(id => id !== sync.id));
+    }
 
     if (editingId) {
       await Store.updateTask(editingId, data, true);
+      /* if it was widened to more syncs, add the missing copies */
+      if (targets && targets.length > 1) {
+        const existing = tasks.find(t => t.id === editingId);
+        if (existing && existing.originId && Store.fanOutTask) {
+          await Store.fanOutTask(existing.originId, data, targets);
+        }
+      }
     } else {
       await Store.addTask(data, targets);
     }

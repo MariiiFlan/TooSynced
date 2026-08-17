@@ -59,6 +59,35 @@ if you ever see old styling, a missing function, or the old icon:
 When you deploy a change, bump the `?v=` number in the HTML files and the
 `CACHE` name in `sw.js` - that forces everyone onto the new files.
 
+## TooSynced Pro ($2.99/month)
+
+All plan rules live in `CONFIG.PLAN` in `assets/js/config.js` - change the
+numbers there, nothing else.
+
+**Free**
+- Create up to **2 syncs**. Two Syncs only.
+- **Joining is unlimited and never blocked**, including group syncs. If a
+  friend invites you, you always get in - a paywall that bounces an invited
+  friend costs the inviter a member, so it never fires on join.
+- 5 nudges a day. The *first nudge on each task* is always free; only
+  re-nudging the same task burns the allowance. Resets at local midnight.
+
+**Pro**
+- Group Syncs, up to 25 syncs
+- 1 streak repair a month
+- Sync themes (set by a Pro member, seen by everyone in that sync)
+- Chore rotation for group syncs, auto-posted to chat weekly
+- Weekly recap card, shareable to Instagram/Snap
+- 40 nudges a day
+
+**Billing is not wired yet.** The paywall is real, the entitlement checks are
+real, but "Get Pro" opens an honest screen saying checkout isn't live, plus a
+button that flips Pro on locally so you can test against it. When you wrap
+with Capacitor, replace `tsCheckout()` in `assets/js/plan.js` with StoreKit /
+Play Billing (or Stripe on web) and set `pro` on the user doc from the
+verified receipt - **verify server-side**, since a client-set flag can be
+edited by anyone in devtools.
+
 ## How syncs work
 
 A **sync** is a shared space. Two kinds:

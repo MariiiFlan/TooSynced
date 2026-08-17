@@ -26,6 +26,32 @@ const CONFIG = {
   APP_URL: "https://toosynced.com",
 
   // App constants
-  NUDGE_DAILY_LIMIT: 10,
-  DEMO_PARTNER_NAME: "Jordan"
+  DEMO_PARTNER_NAME: "Jordan",
+
+  /* ----------------------------------------------------------
+     TooSynced Pro
+     Prices are display-only for now - real billing comes with
+     the app-store wrap (StoreKit / Play Billing via Capacitor)
+     or Stripe on web. Nothing here charges anyone.
+     ---------------------------------------------------------- */
+  PRICE: {
+    MONTHLY: 2.99,
+    CURRENCY: "USD",
+    SYMBOL: "$"
+  },
+
+  PLAN: {
+    /* --- what free gets --- */
+    FREE_MAX_SYNCS_OWNED: 2,        // syncs you CREATE. joining is unlimited.
+    FREE_CAN_CREATE_GROUP: false,   // free can join groups, not start them
+    FREE_NUDGES_SENT_PER_DAY: 5,
+    FIRST_NUDGE_PER_TASK_FREE: true,// re-nudging the same task is what costs
+    NUDGE_RESET: "local_midnight",
+    FREE_STREAK_REPAIRS_PER_MONTH: 0,
+
+    /* --- what Pro gets --- */
+    PRO_NUDGES_SENT_PER_DAY: 40,
+    PRO_STREAK_REPAIRS_PER_MONTH: 1,
+    PRO_MAX_SYNCS_OWNED: 25
+  }
 };

@@ -8,6 +8,7 @@
   let kind = "two";
   let syncPhoto = null;
   let me = null;
+  let allSyncs = [];
 
   tsAurora();
 
@@ -16,11 +17,45 @@
       if (!user) { location.href = "index.html"; return; }
       me = user;
       $("#me-avatar").innerHTML = tsAvatar(user, 32);
-      Store.watchSyncs(render);
+      Store.watchSyncs((list) => { allSyncs = list || []; render(list); paintLimits(); });
       const list = await Store.listSyncs();
       render(list);
     });
   });
+
+  function paintLimits() {
+    const pro = TSPlan.isPro(me);
+    const owned = TSPlan.ownedCount(me, allSyncs);
+    const max = TSPlan.maxOwned(me);
+    const left = max - owned;
+
+    /* group option is Pro-only to CREATE - joining a group is always free */
+    const groupOpt = document.querySelector('[data-kind="group"]');
+    groupOpt.classList.toggle("locked", !TSPlan.canCreateGroup(me));
+    let lock = groupOpt.querySelector(".lock-chip");
+    if (!TSPlan.canCreateGroup(me)) {
+      if (!lock) {
+        lock = document.createElement("span");
+        lock.className = "lock-chip";
+        lock.textContent = "PRO";
+        groupOpt.appendChild(lock);
+      }
+    } else if (lock) lock.remove();
+
+    const note = $("#plan-note");
+    if (pro) {
+      note.innerHTML = '<span class="pro-badge sm">PRO</span> Unlimited syncs, group syncs on.';
+    } else if (left > 0) {
+      note.innerHTML = "You can create <b>" + left + " more</b> sync" + (left === 1 ? "" : "s") +
+        " on free. Joining someone else's is always unlimited. " +
+        '<a href="#" id="plan-up">See Pro</a>';
+    } else {
+      note.innerHTML = "You've used both free syncs. You can still <b>join</b> as many as you like. " +
+        '<a href="#" id="plan-up">Get Pro for more</a>';
+    }
+    const up = $("#plan-up");
+    if (up) up.addEventListener("click", (e) => { e.preventDefault(); tsPaywall("More syncs, more people"); });
+  }
 
   function render(list) {
     const el = $("#sync-list");
@@ -59,6 +94,10 @@
 
   /* ---------- create ---------- */
   document.querySelectorAll(".create-opt").forEach(o => o.addEventListener("click", () => {
+    if (o.dataset.kind === "group" && !TSPlan.canCreateGroup(me)) {
+      tsPaywall("Group Syncs are a Pro thing", "Group Syncs");
+      return;
+    }
     kind = o.dataset.kind;
     document.querySelectorAll(".create-opt").forEach(x => x.classList.toggle("on", x === o));
     if (!syncPhoto) $("#sync-photo-preview").textContent = kind === "group" ? "👥" : "🫂";
@@ -91,6 +130,16 @@
 
   $("#btn-create-sync").addEventListener("click", async () => {
     $("#create-error").classList.add("hidden");
+
+    if (kind === "group" && !TSPlan.canCreateGroup(me)) {
+      tsPaywall("Group Syncs are a Pro thing", "Group Syncs");
+      return;
+    }
+    if (!TSPlan.canCreateSync(me, allSyncs)) {
+      tsPaywall("You've used your " + TSPlan.maxOwned(me) + " free syncs", "Unlimited syncs");
+      return;
+    }
+
     const name = $("#sync-name").value.trim();
     if (!name) { showErr("#create-error", "Give it a name so you can tell your syncs apart."); $("#sync-name").focus(); return; }
     $("#btn-create-sync").disabled = true;
