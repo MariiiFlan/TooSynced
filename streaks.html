@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Streaks — TooSynced</title>
+<meta name="theme-color" content="#FBFAFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo logo--md">T<svg width="23" height="15" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
+  <nav class="topnav">
+    <a href="app.html">Schedule</a>
+    <a href="streaks.html" class="on">Streaks</a>
+    <a href="settings.html">Settings</a>
+  </nav>
+  <div class="right">
+    <span style="font-size:13px;color:var(--muted);">Last 18 weeks</span>
+    <span class="av av--me av--32" id="me-avatar">·</span>
+  </div>
+</div>
+
+<div class="page">
+  <div class="streaks-hero">
+    <div>
+      <h1 id="hero-line">Let's get a streak going</h1>
+      <p id="hero-sub">Check off a full day — both of you — to start the shared streak.</p>
+    </div>
+    <div class="shared-chip"><span style="font-size:18px;">🔥</span> <span id="shared-streak">Shared streak · 0 days</span> <span class="best" id="best-streak"></span></div>
+  </div>
+
+  <div class="stat-cols">
+    <div class="stat-card">
+      <div class="head"><span class="av av--me av--36" id="my-av">·</span><b id="my-name">Me</b><span class="wk-badge" id="my-week">THIS WEEK —</span></div>
+      <div class="big-stats">
+        <div class="big-stat"><b class="mine" id="my-streak">0</b><span>day streak</span></div>
+        <div class="big-stat"><b id="my-kept">—</b><span>tasks kept</span></div>
+        <div class="big-stat"><b id="my-7d">0</b><span>done in 7d</span></div>
+      </div>
+      <div class="field" style="gap:8px;">
+        <span class="heat-label">COMPLETED DAYS</span>
+        <div class="heatmap" id="my-heat"></div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="head"><span class="av av--them av--36" id="their-av">·</span><b id="their-name">Partner</b><span class="wk-badge theirs" id="their-week">THIS WEEK —</span></div>
+      <div class="big-stats">
+        <div class="big-stat"><b class="theirs" id="their-streak">0</b><span>day streak</span></div>
+        <div class="big-stat"><b id="their-kept">—</b><span>tasks kept</span></div>
+        <div class="big-stat"><b id="their-7d">0</b><span>done in 7d</span></div>
+      </div>
+      <div class="field" style="gap:8px;">
+        <span class="heat-label">COMPLETED DAYS</span>
+        <div class="heatmap" id="their-heat"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-grid">
+    <div class="bars-card">
+      <div class="head">
+        <b>Week by week, side by side</b>
+        <div class="legend">
+          <span><i style="background:var(--primary);"></i> <span id="legend-me">Me</span></span>
+          <span><i style="background:var(--partner);"></i> <span id="legend-them">Partner</span></span>
+        </div>
+      </div>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="nice-card">
+        <b>Nicest thing this week</b>
+        <p id="nice-line">Add some tasks and start checking them off — the good stuff shows up here.</p>
+      </div>
+      <div class="help-card" style="flex:1;">
+        <b>Where you help each other</b>
+        <div id="help-rows"><p style="font-size:14px;color:var(--faint);">Once you both have repeating tasks, we'll compare notes here.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script>
+  if (!CONFIG.DEMO_MODE) {
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
+  }
+</script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/streaks.js"></script>
+</body>
+</html>

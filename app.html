@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Schedule — TooSynced</title>
+<meta name="theme-color" content="#FBFAFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo logo--md">T<svg width="23" height="15" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
+  <nav class="topnav">
+    <a href="app.html" class="on">Schedule</a>
+    <a href="streaks.html">Streaks</a>
+    <a href="settings.html">Settings</a>
+  </nav>
+  <div class="right">
+    <div class="streak-pill"><span class="a"></span><span class="b"></span><span class="label-txt" id="streak-label">— streak 🔥</span></div>
+    <span class="av av--me av--32" id="me-avatar">·</span>
+  </div>
+</div>
+
+<div class="page">
+  <div class="sched-head">
+    <div class="left">
+      <h1 id="date-title">Today</h1>
+      <div class="datenav">
+        <button id="nav-prev" aria-label="Previous">‹</button>
+        <button id="nav-next" aria-label="Next">›</button>
+        <button id="nav-today" class="today-btn">Today</button>
+      </div>
+    </div>
+    <div class="viewseg" role="tablist">
+      <button class="on" data-view="day">Day</button>
+      <button data-view="week">Week</button>
+      <button data-view="month">Month</button>
+    </div>
+  </div>
+
+  <!-- DAY VIEW -->
+  <div id="view-day">
+    <div class="mobile-tabs">
+      <button class="on" data-mtab="mine">My day</button>
+      <button data-mtab="theirs" id="mtab-theirs">Partner</button>
+    </div>
+    <div class="cols" id="day-cols" data-mtab="mine">
+      <div class="person-col mine">
+        <div class="col-head">
+          <div class="who">
+            <span class="av av--me av--36" id="col-me-av">·</span>
+            <div class="txt"><b>My day</b><span id="me-count">—</span></div>
+          </div>
+          <div class="progress"><div class="bar"><i id="me-bar" style="width:0%"></i></div><span class="pct" id="me-pct">0%</span></div>
+        </div>
+        <div class="task-list" id="me-tasks"></div>
+      </div>
+      <div class="person-col theirs">
+        <div class="col-head">
+          <div class="who">
+            <span class="av av--them av--36" id="col-them-av">·</span>
+            <div class="txt"><b id="them-title">Partner's day</b><span id="them-count">—</span></div>
+          </div>
+          <div class="progress theirs"><div class="bar"><i id="them-bar" style="width:0%"></i></div><span class="pct" id="them-pct">0%</span></div>
+        </div>
+        <div class="task-list" id="them-tasks"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEEK VIEW -->
+  <div id="view-week" class="hidden">
+    <div class="week-grid" id="week-grid"></div>
+  </div>
+
+  <!-- MONTH VIEW -->
+  <div id="view-month" class="hidden">
+    <div class="month-grid" id="month-grid"></div>
+  </div>
+</div>
+
+<button class="fab" id="fab-add" aria-label="Add task">+</button>
+
+<!-- TASK MODAL -->
+<div class="modal-veil" id="task-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="t"><b id="modal-title">New task</b><span id="modal-sub">Adding to my day</span></div>
+      <button class="modal-x" id="modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="name-icon-row">
+        <div class="field">
+          <label for="t-name">Task name</label>
+          <input class="input" id="t-name" placeholder="Evening walk" maxlength="60">
+        </div>
+        <div class="field">
+          <label>Icon</label>
+          <div class="icon-row" id="icon-row"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="t-time">Time</label>
+          <input class="input" type="time" id="t-time" value="18:30">
+        </div>
+        <div class="field">
+          <label for="t-date">Date</label>
+          <input class="input" type="date" id="t-date">
+        </div>
+      </div>
+      <div class="field" style="gap:9px;">
+        <label>Repeat</label>
+        <div class="pills" id="repeat-pills">
+          <button class="pill on" data-rep="none">None</button>
+          <button class="pill" data-rep="daily">Daily</button>
+          <button class="pill" data-rep="weekdays">Weekdays</button>
+          <button class="pill" data-rep="weekly">Weekly</button>
+          <button class="pill" data-rep="custom">Custom days</button>
+        </div>
+        <div class="day-picks hidden" id="day-picks">
+          <button class="day-pick" data-d="1">M</button>
+          <button class="day-pick" data-d="2">T</button>
+          <button class="day-pick" data-d="3">W</button>
+          <button class="day-pick" data-d="4">T</button>
+          <button class="day-pick" data-d="5">F</button>
+          <button class="day-pick" data-d="6">S</button>
+          <button class="day-pick" data-d="0">S</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="t-note">Note <span class="opt">optional</span></label>
+        <textarea class="input" id="t-note" placeholder="Loop around the park — join me?"></textarea>
+      </div>
+      <button class="toggle-row" id="nudge-toggle" type="button">
+        <span class="switch on" id="nudge-switch"><i></i></span>
+        <span id="nudge-toggle-label">Let my partner nudge me if I miss it</span>
+      </button>
+    </div>
+    <div class="modal-foot">
+      <button class="del hidden" id="modal-delete">Delete</button>
+      <div class="spacer">
+        <button class="btn btn--ghost" id="modal-cancel">Cancel</button>
+        <button class="btn btn--primary" id="modal-save">Save task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script>
+  if (!CONFIG.DEMO_MODE) {
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
+  }
+</script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

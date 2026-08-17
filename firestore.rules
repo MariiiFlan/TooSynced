@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Each user can read/write only their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Pairs: members can read/write; anyone signed in can read to join by
+    // invite code, and can add themselves as the 2nd member only.
+    match /pairs/{pairId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.memberUids.size() == 1
+        && request.resource.data.memberUids[0] == request.auth.uid;
+      allow update: if request.auth != null && (
+        // existing member editing (e.g. name change)
+        resource.data.memberUids.hasAny([request.auth.uid])
+        ||
+        // second person joining: adds exactly themselves
+        (
+          resource.data.memberUids.size() == 1
+          && request.resource.data.memberUids.size() == 2
+          && request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          && request.resource.data.memberUids.hasAny([request.auth.uid])
+        )
+      );
+
+      // Everything inside a pair is members-only
+      match /{sub=**} {
+        allow read, write: if request.auth != null
+          && get(/databases/$(database)/documents/pairs/$(pairId)).data.memberUids.hasAny([request.auth.uid]);
+      }
+    }
+  }
+}

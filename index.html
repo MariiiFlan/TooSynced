@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TooSynced — build discipline together</title>
+<meta name="description" content="Share your schedule with your person. Check things off, keep the streak, send a kind nudge when the day slips.">
+<meta name="theme-color" content="#FBFAFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<div class="auth-page">
+  <div class="auth-top">
+    <span class="logo logo--lg">T<svg width="27" height="18" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
+    <span class="alt" id="auth-switch-top">New here? <a href="#" id="switch-mode-link">Create a pair</a></span>
+  </div>
+
+  <div class="auth-main">
+    <div class="auth-hero">
+      <div class="auth-live-pill"><span class="dot"></span> <span id="live-pill-text">Partners are checking off tasks right now</span></div>
+      <h1 id="hero-title">We're in this<br>together, <span>daily</span>.</h1>
+      <p class="sub">Share your schedule with your person. Check things off, keep the streak, send a kind nudge when the day slips.</p>
+
+      <form class="auth-form" id="auth-form">
+        <div class="error-msg hidden" id="auth-error"></div>
+        <input class="input hidden" type="text" id="f-name" placeholder="Your name" autocomplete="name">
+        <input class="input" type="email" id="f-email" placeholder="you@email.com" autocomplete="email" required>
+        <input class="input" type="password" id="f-pass" placeholder="Password" autocomplete="current-password" required>
+        <div class="row">
+          <button class="btn btn--primary" type="submit" id="btn-email">Continue with email</button>
+          <button class="btn btn--ghost" type="button" id="btn-google"><span class="g-badge">G</span> Google</button>
+        </div>
+        <span class="auth-switch" id="demo-hint"></span>
+      </form>
+    </div>
+
+    <div class="auth-preview" aria-hidden="true">
+      <div class="head">
+        <div class="who">
+          <span class="av av--them av--36">J</span>
+          <div class="txt"><b>Jordan's Tuesday</b><span>partner view</span></div>
+        </div>
+        <div class="seg"><span class="on">Day</span><span>Week</span><span>Month</span></div>
+      </div>
+      <div class="tasks">
+        <div class="task is-done">
+          <span class="ring">✓</span><span class="emoji">🏃</span>
+          <div class="mid"><span class="name">Morning run</span><span class="meta">6:30 AM · done 6:52</span></div>
+        </div>
+        <div class="task is-done">
+          <span class="ring">✓</span><span class="emoji">☕</span>
+          <div class="mid"><span class="name">Journal + coffee</span><span class="meta">8:00 AM</span></div>
+        </div>
+        <div class="task is-missed">
+          <span class="ring"></span><span class="emoji">📚</span>
+          <div class="mid"><span class="name">Study block</span><span class="meta">11:00 AM · missed</span></div>
+          <span class="btn btn--nudge">🔔 Nudge</span>
+        </div>
+        <div class="task">
+          <span class="ring"></span><span class="emoji">🧘</span>
+          <div class="mid"><span class="name">Stretch</span><span class="meta">6:00 PM</span></div>
+          <span class="upcoming">upcoming</span>
+        </div>
+        <div class="streak-note">
+          <svg width="22" height="22" viewBox="0 0 100 100" fill="none" aria-hidden="true"><rect x="12" y="18" width="76" height="68" rx="18" stroke="#B79AF7" stroke-width="11"/><circle cx="41" cy="61" r="14" stroke="#7C3AED" stroke-width="11"/><circle cx="59" cy="61" r="14" stroke="#4C1D95" stroke-width="11"/></svg>
+          <span>You're both on a <b>12-day streak</b>. Don't break it tonight.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script>
+  /* Firebase compat SDK — only loaded in live mode */
+  if (!CONFIG.DEMO_MODE) {
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
+  }
+</script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/auth.js"></script>
+</body>
+</html>
