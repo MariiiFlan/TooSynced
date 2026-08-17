@@ -40,6 +40,14 @@ const CONFIG = {
     SYMBOL: "$"
   },
 
+  /* RevenueCat -> Google Play Billing. Paste from app.revenuecat.com:
+     Project > API keys > Public app key (Android), and the entitlement id. */
+  REVENUECAT: {
+    ANDROID_KEY: "PASTE_REVENUECAT_ANDROID_PUBLIC_KEY",
+    IOS_KEY: "PASTE_REVENUECAT_IOS_PUBLIC_KEY",
+    ENTITLEMENT: "pro"
+  },
+
   PLAN: {
     /* --- what free gets --- */
     FREE_MAX_SYNCS_OWNED: 2,        // syncs you CREATE. joining is unlimited.

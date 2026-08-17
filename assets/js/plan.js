@@ -129,7 +129,33 @@ window.tsPaywall = (reason, highlight) => {
 
 /* Billing isn't wired yet. This is the one honest place that says so,
    and lets you switch Pro on locally to build and test against it. */
-window.tsCheckout = () => {
+window.tsCheckout = async () => {
+  /* inside the Android/iOS app this MUST go through the store's billing */
+  if (window.TSNative && TSNative.isNative) {
+    const P = TSNative.plugin("Purchases");
+    if (!P || (CONFIG.REVENUECAT || {}).ANDROID_KEY.startsWith("PASTE")) {
+      tsToast("Billing isn't configured in this build yet");
+      return;
+    }
+    tsToast("Opening Google Play...");
+    const res = await TSNative.buyPro();
+    if (res.ok) {
+      tsChime();
+      tsToast("You're Pro - thank you 💜");
+      setTimeout(() => location.reload(), 900);
+    } else if (res.reason === "cancelled") {
+      /* say nothing - they backed out on purpose */
+    } else if (res.reason === "no-offering") {
+      tsToast("No subscription found. Check the RevenueCat offering is live.");
+    } else {
+      tsToast("Purchase didn't go through. Try again in a moment.");
+    }
+    return;
+  }
+  tsCheckoutWeb();
+};
+
+window.tsCheckoutWeb = () => {
   document.querySelectorAll(".paywall-veil").forEach(x => x.remove());
   const veil = document.createElement("div");
   veil.className = "modal-veil paywall-veil";
@@ -143,7 +169,9 @@ window.tsCheckout = () => {
           "this button becomes a real subscription (" + CONFIG.PRICE.SYMBOL + CONFIG.PRICE.MONTHLY.toFixed(2) +
           "/month). Until then you can switch Pro on to try everything." +
         "</p>" +
-        '<button class="btn btn--primary btn--block" id="pw-dev">Turn on Pro for testing</button>' +
+        (CONFIG.DEMO_MODE
+          ? '<button class="btn btn--primary btn--block" id="pw-dev">Turn on Pro for testing</button>'
+          : '<button class="btn btn--ghost btn--block" id="pw-restore">Restore purchases</button>') +
         '<button class="btn btn--ghost btn--block" id="pw-back">Close</button>' +
       "</div>" +
     "</div>";
@@ -152,11 +180,21 @@ window.tsCheckout = () => {
   const close = () => { veil.classList.remove("open"); setTimeout(() => veil.remove(), 220); };
   veil.querySelector("#pw-back").addEventListener("click", close);
   veil.addEventListener("click", (e) => { if (e.target === veil) close(); });
-  veil.querySelector("#pw-dev").addEventListener("click", async () => {
+  const dev = veil.querySelector("#pw-dev");
+  if (dev) dev.addEventListener("click", async () => {
     await Store.updateProfile({ pro: true, proSince: Date.now(), proUntil: null });
     close();
     tsToast("Pro is on - enjoy 💜");
     setTimeout(() => location.reload(), 700);
+  });
+  const restore = veil.querySelector("#pw-restore");
+  if (restore) restore.addEventListener("click", async () => {
+    if (!(window.TSNative && TSNative.isNative)) { tsToast("Nothing to restore here"); return; }
+    tsToast("Checking Google Play...");
+    const ok = await TSNative.restorePurchases();
+    close();
+    tsToast(ok ? "Pro restored 💜" : "No previous purchase found");
+    if (ok) setTimeout(() => location.reload(), 800);
   });
 };
 

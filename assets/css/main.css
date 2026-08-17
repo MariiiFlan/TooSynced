@@ -982,3 +982,48 @@ textarea.input{min-height:66px;resize:vertical;}
 /* keep the location pin readable in narrow group columns */
 .loc-pin{max-width:190px;}
 .cols.group-cols .loc-pin{max-width:150px;font-size:11px;}
+
+/* ============================================================
+   NATIVE APP (Capacitor)
+   Android 16 forces edge-to-edge, so the web view draws under
+   the status bar and the gesture bar. Pad for both.
+   ============================================================ */
+html.is-native{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html.is-native body{
+  padding-top:var(--safe-top);
+  padding-bottom:var(--safe-bottom);
+}
+html.is-native .topbar{
+  top:var(--safe-top);
+}
+html.is-native .fab{
+  bottom:calc(22px + var(--safe-bottom));
+}
+html.is-native .toast{
+  bottom:calc(24px + var(--safe-bottom));
+}
+html.is-native .chat-bar{
+  padding-bottom:calc(16px + var(--safe-bottom));
+}
+html.is-native .modal-veil{
+  padding-top:var(--safe-top);
+}
+/* no text selection / long-press callout - it feels wrong in an app */
+html.is-native{
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
+html.is-native .task,html.is-native .btn,html.is-native .pill,
+html.is-native .sync-card,html.is-native .topnav a{
+  -webkit-user-select:none;user-select:none;
+}
+/* inputs and message text must stay selectable */
+html.is-native input,html.is-native textarea,
+html.is-native .bubble,html.is-native #d-note{
+  -webkit-user-select:text;user-select:text;
+}
+/* overscroll glow looks broken in a web view */
+html.is-native body{overscroll-behavior-y:none;}

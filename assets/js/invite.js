@@ -82,9 +82,10 @@
       catch { tsToast("Couldn't copy - long-press the link instead"); }
     });
     $("#btn-share-text").addEventListener("click", () => {
-      const msg = "Join my sync on TooSynced - we keep each other on schedule. " + inviteUrl;
-      if (navigator.share) navigator.share({ text: msg }).catch(() => {});
-      else location.href = "sms:?&body=" + encodeURIComponent(msg);
+      const msg = "Join my sync on TooSynced - we keep each other on schedule.";
+      if (window.TSNative && TSNative.isNative) { TSNative.share(msg, inviteUrl); return; }
+      if (navigator.share) navigator.share({ text: msg + " " + inviteUrl }).catch(() => {});
+      else location.href = "sms:?&body=" + encodeURIComponent(msg + " " + inviteUrl);
     });
     $("#btn-share-email").addEventListener("click", () => {
       location.href = "mailto:?subject=" + encodeURIComponent("Join my sync on TooSynced")

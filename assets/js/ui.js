@@ -340,6 +340,7 @@ function tsRequireSync(cb) {
   Store.init().then(() => {
     Store.onAuth(async (user) => {
       if (!user) { location.href = "index.html"; return; }
+      if (window.TSNative) TSNative.init(user);
       const sync = await Store.getSync();
       if (!sync) { location.href = "syncs.html"; return; }
       cb(user, sync);

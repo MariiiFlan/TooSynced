@@ -77,9 +77,29 @@
     catch { tsToast("Couldn't copy on this device"); }
   });
 
-  $("#btn-share-loc").addEventListener("click", () => {
-    if (!navigator.geolocation) { tsToast("This device can't share location"); return; }
+  $("#btn-share-loc").addEventListener("click", async () => {
     const btn = $("#btn-share-loc");
+
+    /* native gets the proper system permission dialog */
+    if (window.TSNative && TSNative.isNative) {
+      btn.disabled = true; btn.textContent = "Finding you...";
+      try {
+        const c = await TSNative.getPosition();
+        await Store.shareLocation({
+          lat: Number(c.latitude.toFixed(5)),
+          lng: Number(c.longitude.toFixed(5))
+        });
+        tsToast("Location shared with this sync 📍");
+      } catch (e) {
+        tsToast(e.message === "denied"
+          ? "Location permission denied - turn it on in Android settings"
+          : "Couldn't get your location");
+      }
+      btn.disabled = false; btn.textContent = "Share where I am";
+      return;
+    }
+
+    if (!navigator.geolocation) { tsToast("This device can't share location"); return; }
     btn.disabled = true; btn.textContent = "Finding you...";
     navigator.geolocation.getCurrentPosition(async (pos) => {
       await Store.shareLocation({
