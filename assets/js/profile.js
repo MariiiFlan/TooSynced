@@ -66,7 +66,11 @@
         name, photo, birthday: $("#p-birthday").value || null
       });
       tsToast("Profile saved");
-      setTimeout(() => history.length > 1 ? history.back() : (location.href = "settings.html"), 600);
+      setTimeout(async () => {
+        let sync = null;
+        try { sync = await Store.getSync(); } catch (e) {}
+        location.href = sync ? "settings.html" : "syncs.html";
+      }, 700);
     } catch (err) {
       showError(err.message || "Couldn't save that.");
       $("#btn-save-profile").disabled = false;

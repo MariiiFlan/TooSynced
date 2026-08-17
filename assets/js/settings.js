@@ -7,9 +7,20 @@
 
   tsAurora();
 
-  tsRequireSync(async (user, s) => {
+  tsRequireUser(async (user, s) => {
     me = user; sync = s;
-    tsSyncSwitcher("#sync-switch", s);
+
+    /* no sync yet: keep profile, Pro and account usable, hide the rest */
+    if (!s) {
+      document.querySelectorAll("[data-needs-sync]").forEach(el => el.classList.add("hidden"));
+      document.getElementById("no-sync-card").classList.remove("hidden");
+      const sw = document.querySelector("#sync-switch");
+      if (sw) sw.innerHTML = '<a class="btn btn--ghost" href="syncs.html" style="padding:8px 14px;font-size:14px;">Your syncs</a>';
+      document.querySelectorAll('.topnav a[href="app.html"],.topnav a[href="chat.html"],.topnav a[href="streaks.html"]')
+        .forEach(a => { a.style.opacity = ".45"; a.title = "Join or create a sync first"; });
+    } else {
+      tsSyncSwitcher("#sync-switch", s);
+    }
 
     /* profile summary */
     $("#s-avatar").outerHTML = tsAvatar(user, 56);
@@ -19,11 +30,13 @@
       : "No birthday set";
     if (user.phone) $("#s-phone").value = user.phone;
 
-    paintSync(s);
-    Store.watchSync((fresh) => { if (fresh) { sync = fresh; paintSync(fresh); } });
+    if (s) {
+      paintSync(s);
+      Store.watchSync((fresh) => { if (fresh) { sync = fresh; paintSync(fresh); } });
+    }
 
     /* location check-in status */
-    Store.watchLocations((locs) => {
+    if (s) Store.watchLocations((locs) => {
       const mine = (locs || {})[user.uid];
       $("#loc-status").textContent = mine
         ? "Sharing" + (mine.label ? " · " + mine.label : "") + " (tap again to refresh)"
@@ -33,7 +46,7 @@
 
     if (CONFIG.DEMO_MODE) $("#btn-reset-demo").classList.remove("hidden");
     paintPro(user);
-    paintThemes(user, s);
+    if (s) paintThemes(user, s);
   });
 
   function paintSync(s) {
@@ -59,6 +72,7 @@
   });
 
   $("#btn-rename").addEventListener("click", async () => {
+    if (!sync) return;
     const name = $("#s-sync-name").value.trim();
     if (!name) return;
     await Store.updateSync(sync.id, { name });
@@ -66,18 +80,20 @@
   });
 
   $("#btn-leave").addEventListener("click", async () => {
+    if (!sync) return;
     if (!confirm("Leave \"" + sync.name + "\"? You can rejoin later with the invite code.")) return;
     await Store.leaveSync(sync.id);
     location.href = "syncs.html";
   });
 
   $("#btn-copy").addEventListener("click", async () => {
-    if (!inviteUrl) return;
+    if (!sync || !inviteUrl) return;
     try { await navigator.clipboard.writeText(inviteUrl); tsToast("Invite link copied"); }
     catch { tsToast("Couldn't copy on this device"); }
   });
 
   $("#btn-share-loc").addEventListener("click", async () => {
+    if (!sync) { tsToast("Join or create a sync first"); return; }
     const btn = $("#btn-share-loc");
 
     /* native gets the proper system permission dialog */

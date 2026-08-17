@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Settings - TooSynced</title>
 <meta name="theme-color" content="#FBFAFF">
-<link rel="manifest" href="manifest.webmanifest?v=11">
-<link rel="icon" href="icons/favicon.png?v=11">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=11">
+<link rel="manifest" href="manifest.webmanifest?v=12">
+<link rel="icon" href="icons/favicon.png?v=12">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=12">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css?v=11">
+<link rel="stylesheet" href="assets/css/main.css?v=12">
 </head>
 <body>
 
@@ -31,6 +31,15 @@
 <div class="page">
   <div class="settings-wrap">
 
+    <div class="settings-card hidden" id="no-sync-card" style="border:1.5px dashed var(--chip-border);background:var(--chip-bg);">
+      <b>You're not in a sync yet</b>
+      <p style="font-size:14px;color:var(--muted);line-height:1.5;">
+        Sync settings, themes and location live inside a sync. Start one or join
+        with a code and they'll show up here.
+      </p>
+      <a class="btn btn--primary" href="syncs.html" style="align-self:flex-start;">Go to your syncs</a>
+    </div>
+
     <div class="settings-card">
       <b>Profile</b>
       <a class="sync-card" href="profile.html" style="text-decoration:none;color:inherit;">
@@ -48,7 +57,7 @@
       <button class="btn btn--primary" id="btn-save-phone" style="align-self:flex-start;">Save phone</button>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-needs-sync>
       <b>This sync</b>
       <div id="sync-info" style="display:flex;flex-direction:column;gap:11px;"></div>
       <div class="field" style="gap:9px;">
@@ -83,7 +92,7 @@
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-needs-sync>
       <div style="display:flex;align-items:center;gap:10px;">
         <b>Sync theme</b><span id="theme-lock"></span>
       </div>
@@ -93,7 +102,7 @@
       <div class="theme-grid" id="theme-grid"></div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-needs-sync>
       <b>Location</b>
       <p style="font-size:14px;color:var(--muted);line-height:1.5;">
         Drop a pin so your sync knows where you are right now. It's a one-time
@@ -123,7 +132,7 @@
 </div>
 
 <script src="capacitor.js"></script>
-<script src="assets/js/config.js?v=11"></script>
+<script src="assets/js/config.js?v=12"></script>
 <script>
   if (!CONFIG.DEMO_MODE) {
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
@@ -131,11 +140,11 @@
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
   }
 </script>
-<script src="assets/js/store.js?v=11"></script>
-<script src="assets/js/ui.js?v=11"></script>
-<script src="assets/js/native.js?v=11"></script>
-<script src="assets/js/plan.js?v=11"></script>
-<script src="assets/js/pro.js?v=11"></script>
-<script src="assets/js/settings.js?v=11"></script>
+<script src="assets/js/store.js?v=12"></script>
+<script src="assets/js/ui.js?v=12"></script>
+<script src="assets/js/native.js?v=12"></script>
+<script src="assets/js/plan.js?v=12"></script>
+<script src="assets/js/pro.js?v=12"></script>
+<script src="assets/js/settings.js?v=12"></script>
 </body>
 </html>

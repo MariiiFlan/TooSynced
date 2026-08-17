@@ -335,7 +335,21 @@ window.tsSyncLabel = (s) => {
   return s.kind === "group" ? n + " people" : (n < 2 ? "waiting for 1 more" : "just you two");
 };
 
-/* guard used by every app page: needs auth AND an active sync */
+/* guard for pages that work with or without a sync (settings, profile).
+   Signed out -> sign in. Otherwise you always get in, sync or not. */
+function tsRequireUser(cb) {
+  Store.init().then(() => {
+    Store.onAuth(async (user) => {
+      if (!user) { location.href = "index.html"; return; }
+      if (window.TSNative) TSNative.init(user);
+      let sync = null;
+      try { sync = await Store.getSync(); } catch (e) { sync = null; }
+      cb(user, sync);
+    });
+  });
+}
+
+/* guard used by pages that genuinely need a sync (schedule, chat, streaks) */
 function tsRequireSync(cb) {
   Store.init().then(() => {
     Store.onAuth(async (user) => {
