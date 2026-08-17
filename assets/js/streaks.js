@@ -4,6 +4,7 @@
 (function () {
   const $ = (s) => document.querySelector(s);
   let me = null, partner = null, tasks = [], completions = new Map();
+  tsAurora();
 
   tsRequireAuth((user, pair) => {
     me = user;
@@ -88,9 +89,13 @@
     $("#" + prefix + "-kept").textContent = wk.pct === null ? "—" : wk.pct + "%";
     $("#" + prefix + "-7d").textContent = wk.done;
 
-    /* heatmap: 18 weeks, columns = weeks, rows = weekdays */
+    /* heatmap: 18 weeks, columns = weeks, rows = weekdays.
+       09: cells pop in column by column on first paint */
     const heat = $("#" + prefix + "-heat");
+    if (!heat.dataset.painted) heat.dataset.painted = Date.now();
+    const waveWindow = Date.now() - Number(heat.dataset.painted) < 1600;
     heat.innerHTML = "";
+    heat.classList.toggle("waving", waveWindow);
     const today = TS.today();
     const endWd = TS.weekday(today);
     const start = TS.addDays(today, -(17 * 7 + endWd)); // back to a Sunday 18 weeks ago
@@ -98,6 +103,7 @@
       for (let r = 0; r < 7; r++) {
         const d = TS.addDays(start, w * 7 + r);
         const i = document.createElement("i");
+        i.style.setProperty("--d", (w * 0.045).toFixed(3) + "s");
         if (d <= today) {
           const s = dayState(uid, d);
           if (s === "full") i.style.background = prefix === "my" ? "#7C3AED" : "#F0A050";
@@ -123,9 +129,11 @@
     return occ ? Math.round(done / occ * 100) : 0;
   }
 
+  let barsAnimated = false;
   function renderBars() {
     const bars = $("#bars");
     bars.innerHTML = "";
+    const animate = !barsAnimated && !tsReducedMotion();
     for (let w = 4; w >= 0; w--) {
       const mine = weekPct(me.uid, w);
       const theirs = partner ? weekPct(partner.uid, w) : 0;
@@ -138,7 +146,17 @@
         '</div>' +
         '<span class="lbl">' + (w === 0 ? "this week" : w + "w ago") + "</span>";
       bars.appendChild(g);
+      if (animate) {
+        g.querySelectorAll(".bar").forEach((b, i) => {
+          const h = b.style.height;
+          b.animate(
+            [{ height: "4%" }, { height: h }],
+            { duration: 700, delay: (4 - w) * 90 + i * 180, easing: "cubic-bezier(.2,.9,.2,1)", fill: "backwards" }
+          );
+        });
+      }
     }
+    if (animate) barsAnimated = true;
   }
 
   function renderInsights() {

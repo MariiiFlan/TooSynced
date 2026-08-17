@@ -10,15 +10,16 @@
    ============================================================ */
 
 const CONFIG = {
-  DEMO_MODE: true,
+  DEMO_MODE: false,
 
   FIREBASE: {
-    apiKey: "PASTE_API_KEY",
-    authDomain: "PASTE_PROJECT.firebaseapp.com",
-    projectId: "PASTE_PROJECT_ID",
-    storageBucket: "PASTE_PROJECT.appspot.com",
-    messagingSenderId: "PASTE_SENDER_ID",
-    appId: "PASTE_APP_ID"
+    apiKey: "AIzaSyB-4CnnmJXHX34B1BzzfQi7R7idI0UyKYM",
+    authDomain: "toosynced-a4bed.firebaseapp.com",
+    projectId: "toosynced-a4bed",
+    storageBucket: "toosynced-a4bed.firebasestorage.app",
+    messagingSenderId: "538505244645",
+    appId: "1:538505244645:web:1c35166628d862229a090c",
+    measurementId: "G-YXK596SZKW"
   },
 
   // Base URL used in invite links (no trailing slash)

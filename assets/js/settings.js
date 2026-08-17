@@ -4,10 +4,13 @@
 (function () {
   const $ = (s) => document.querySelector(s);
   let inviteUrl = "";
+  tsAurora();
 
   tsRequireAuth(async (user, pair) => {
     $("#me-avatar").textContent = (user.name || "?").charAt(0).toUpperCase();
     $("#s-name").value = user.name || "";
+    const prof = await Store.getProfile();
+    if (prof && prof.phone) $("#s-phone").value = prof.phone;
 
     if (pair) {
       inviteUrl = CONFIG.APP_URL + "/index.html?join=" + pair.inviteCode;
@@ -29,8 +32,9 @@
     const name = $("#s-name").value.trim();
     if (!name) return;
     await Store.setName(name);
+    if (Store.setPhone) await Store.setPhone($("#s-phone").value);
     $("#me-avatar").textContent = name.charAt(0).toUpperCase();
-    tsToast("Name saved");
+    tsToast("Profile saved");
   });
 
   $("#btn-copy").addEventListener("click", async () => {

@@ -1,40 +1,41 @@
 # TooSynced — setup
 
-The app ships in **demo mode**: open `index.html` and everything works in the
-browser with sample data (partner "Jordan", auto-responses, the lot). Nothing
-is sent anywhere. Use it to click through the whole flow.
+**Firebase keys are already in `assets/js/config.js` and `DEMO_MODE` is off** —
+this build talks to the real `toosynced-a4bed` project. (To demo without
+Firebase, flip `DEMO_MODE: true` — any email/phone works, partner "Jordan"
+responds automatically, demo SMS code is 123456.)
 
-## Go live with Firebase (10 min)
+## Remaining Firebase steps
 
-1. **Create the project** — https://console.firebase.google.com → Add project
-   (call it `toosynced`). Analytics optional.
-2. **Add a web app** — Project overview → the `</>` icon → register app.
-   Copy the `firebaseConfig` block it shows you.
-3. **Paste the config** — open `assets/js/config.js`, paste your values into
-   `CONFIG.FIREBASE`, and set `DEMO_MODE: false`.
-4. **Turn on Auth** — Build → Authentication → Get started →
-   enable **Email/Password** and **Google**.
-5. **Turn on Firestore** — Build → Firestore Database → Create database →
+1. **Firestore** — Build → Firestore Database → Create database →
    production mode → pick a region (us-west is fine).
-6. **Paste the rules** — Firestore → Rules tab → replace everything with the
-   contents of `firestore.rules` → Publish.
-7. **Authorize your domain** — Authentication → Settings → Authorized domains →
-   add `toosynced.com` (and your `*.github.io` URL while testing).
-8. **Set the app URL** — in `config.js`, `APP_URL` should be the live domain
-   (used in invite links).
+2. **Rules** — Firestore → Rules tab → replace everything with the contents
+   of `firestore.rules` → Publish.
+3. **Authorized domains** — Authentication → Settings → Authorized domains →
+   add your `<user>.github.io` and `toosynced.com` when you have it.
+   `localhost` is already there. **Google and Phone sign-in only work on
+   domains in this list** — this is the #1 "why doesn't login work" cause.
+
+## Sign-in methods (all wired)
+
+- **Email + password** — with optional phone number saved on sign-up
+- **Google** — popup
+- **Phone (SMS code)** — invisible reCAPTCHA, then a 6-digit text.
+  Heads up: the Spark free tier caps phone auth at **10 SMS/day** — plenty
+  for you two, but the app shows a friendly error if the quota's hit.
 
 ## Deploy (GitHub Pages, same as your other sites)
 
 1. New repo → drop this whole folder in → push.
 2. Settings → Pages → deploy from `main` branch root.
 3. Cloudflare DNS: CNAME `toosynced.com` → `<user>.github.io`, add the custom
-   domain in Pages settings.
+   domain in Pages settings, then add that domain in Firebase authorized domains.
 
 ## Install as an app (PWA)
 
 - **iPhone**: open the site in Safari → Share → **Add to Home Screen**.
 - **Android**: Chrome shows an install prompt, or ⋮ → **Add to Home screen**.
-It opens fullscreen with the icon like a real app.
+The icon is the locked TooSynced calendar mark.
 
 ## How nudges work right now
 
@@ -46,11 +47,11 @@ upgrade, and also the moment before app-store wrapping with Capacitor.
 
 ## File map
 
-- `index.html` + `assets/js/auth.js` — sign in / create account
+- `index.html` + `assets/js/auth.js` — sign in / create account (email, Google, phone)
 - `pair.html` + `pair.js` — invite link, join by code, waiting state
 - `app.html` + `app.js` — schedule (day/week/month), check-offs, nudges, task modal
 - `streaks.html` + `streaks.js` — streaks, heatmaps, weekly bars, insights
-- `settings.html` + `settings.js` — name, invite link, notifications, sign out
-- `assets/js/config.js` — the only file you edit to go live
+- `settings.html` + `settings.js` — name, phone, invite link, notifications, sign out
+- `assets/js/config.js` — keys + mode flags (the only file you edit)
 - `assets/js/store.js` — data layer (demo + Firebase behind one API)
 - `firestore.rules` — paste into Firebase console

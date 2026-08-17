@@ -17,6 +17,16 @@ function tsToday() {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
+/* normalize to E.164; assumes US (+1) when 10 digits are given bare */
+function tsE164(raw) {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  if (s.startsWith("+")) return "+" + s.slice(1).replace(/\D/g, "");
+  const digits = s.replace(/\D/g, "");
+  if (digits.length === 10) return "+1" + digits;
+  if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+  return null;
+}
 
 /* ============================================================
    DEMO STORE
@@ -75,9 +85,9 @@ const DemoStore = (() => {
     async init() {},
     onAuth(cb) { const db = load(); setTimeout(() => cb(db.user), 0); },
 
-    async signUpEmail(name) {
+    async signUpEmail(name, email, pass, phone) {
       const db = load();
-      db.user = { uid: "me", name: name || "You" };
+      db.user = { uid: "me", name: name || "You", phone: tsE164(phone) || null };
       save(db); return db.user;
     },
     async signInEmail() {
@@ -86,6 +96,22 @@ const DemoStore = (() => {
       save(db); return db.user;
     },
     async signInGoogle() { return this.signInEmail(); },
+    /* demo phone flow: any number works, code is always 123456 (shown in toast) */
+    async startPhoneSignIn(phone) {
+      if (!tsE164(phone)) throw new Error("That doesn't look like a phone number.");
+      if (window.tsToast) tsToast("Demo: your code is 123456");
+      return true;
+    },
+    async confirmPhoneCode(code, name) {
+      if (code !== "123456") throw new Error("Wrong code — in demo mode it's 123456.");
+      const db = load();
+      if (!db.user) db.user = { uid: "me", name: name || "You" };
+      save(db); return db.user;
+    },
+    async setPhone(phone) {
+      const db = load(); if (db.user) db.user.phone = tsE164(phone) || null;
+      save(db);
+    },
     async signOut() { const db = load(); db.user = null; save(db); },
     async resetDemo() { localStorage.removeItem(KEY); },
 
@@ -172,6 +198,13 @@ const DemoStore = (() => {
       return db.nudgeCount[today];
     },
     async nudgesSentToday() { const db = load(); return db.nudgeCount[tsToday()] || 0; },
+    /* presence (10): demo partner "opens the app" a few seconds after you */
+    startPresence() {},
+    watchPresence(cb) {
+      const db = load();
+      if (db.pair && db.pair.joined) setTimeout(() => cb(true), 4000);
+      else listeners.pair.push(p => { if (p && p.joined) setTimeout(() => cb(true), 4000); });
+    },
     async markNudgeSeen(id) {
       const db = load();
       const n = db.nudges.find(n => n.id === id);
@@ -220,9 +253,11 @@ const FirebaseStore = (() => {
         } else cb(null);
       });
     },
-    async signUpEmail(name, email, pass) {
+    async signUpEmail(name, email, pass, phone) {
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
-      await db.collection("users").doc(cred.user.uid).set({ name: name || "You", pairId: null });
+      await db.collection("users").doc(cred.user.uid).set({
+        name: name || "You", pairId: null, phone: tsE164(phone) || null
+      });
       return { uid: cred.user.uid, name };
     },
     async signInEmail(email, pass) {
@@ -233,6 +268,33 @@ const FirebaseStore = (() => {
       const provider = new firebase.auth.GoogleAuthProvider();
       const cred = await auth.signInWithPopup(provider);
       return { uid: cred.user.uid };
+    },
+    /* phone sign-in: invisible reCAPTCHA on the trigger button, then SMS code */
+    _confirmation: null,
+    _recaptcha: null,
+    async startPhoneSignIn(phone, buttonId) {
+      const e164 = tsE164(phone);
+      if (!e164) throw new Error("Enter a phone number like (951) 555-0134 or +1 951 555 0134.");
+      if (!this._recaptcha) {
+        this._recaptcha = new firebase.auth.RecaptchaVerifier(buttonId, { size: "invisible" });
+      }
+      this._confirmation = await auth.signInWithPhoneNumber(e164, this._recaptcha);
+      return true;
+    },
+    async confirmPhoneCode(code, name) {
+      if (!this._confirmation) throw new Error("Ask for a code first.");
+      const cred = await this._confirmation.confirm(code.trim());
+      const u = cred.user;
+      const snap = await db.collection("users").doc(u.uid).get();
+      if (!snap.exists) {
+        await db.collection("users").doc(u.uid).set({
+          name: name || "You", pairId: null, phone: u.phoneNumber || null
+        });
+      }
+      return { uid: u.uid };
+    },
+    async setPhone(phone) {
+      await db.collection("users").doc(uid).update({ phone: tsE164(phone) || null });
     },
     async signOut() { unsubs.forEach(u => u()); unsubs = []; await auth.signOut(); },
     async resetDemo() {},
@@ -358,6 +420,31 @@ const FirebaseStore = (() => {
     },
     async markNudgeSeen(id) {
       await db.collection("pairs").doc(pairId).collection("nudges").doc(id).update({ seen: true });
+    },
+    /* presence (10): heartbeat while the tab is open, watch the partner's */
+    startPresence() {
+      if (!pairId || !uid) return;
+      const beat = () => {
+        if (document.visibilityState !== "hidden")
+          db.collection("pairs").doc(pairId).collection("presence").doc(uid)
+            .set({ at: Date.now() }).catch(() => {});
+      };
+      beat();
+      const iv = setInterval(beat, 25000);
+      unsubs.push(() => clearInterval(iv));
+      document.addEventListener("visibilitychange", beat);
+    },
+    watchPresence(cb) {
+      if (!pairId) return;
+      let lastAt = 0;
+      const evalFresh = () => cb(Date.now() - lastAt < 70000);
+      const un = db.collection("pairs").doc(pairId).collection("presence")
+        .onSnapshot(s => {
+          s.docs.forEach(d => { if (d.id !== uid) lastAt = (d.data() || {}).at || 0; });
+          evalFresh();
+        });
+      const iv = setInterval(evalFresh, 15000);
+      unsubs.push(un, () => clearInterval(iv));
     }
   };
 })();

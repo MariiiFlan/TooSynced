@@ -6,7 +6,7 @@
 <title>Schedule — TooSynced</title>
 <meta name="theme-color" content="#FBFAFF">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/favicon.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,14 +16,14 @@
 <body>
 
 <div class="topbar">
-  <span class="logo logo--md">T<svg width="23" height="15" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
+  <span class="logo logo--md"><svg class="mark" width="24" height="24" viewBox="0 0 100 100" fill="none" aria-hidden="true" style="align-self:center;margin-right:7px;"><rect x="12" y="18" width="76" height="68" rx="18" stroke="#B79AF7" stroke-width="9"/><path d="M12 36h76" stroke="#B79AF7" stroke-width="9"/><circle cx="41" cy="61" r="15" stroke="#7C3AED" stroke-width="9"/><circle cx="59" cy="61" r="15" stroke="#4C1D95" stroke-width="9"/></svg>T<svg width="23" height="15" viewBox="2 1 66 44" fill="none" aria-hidden="true"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg>Synced</span>
   <nav class="topnav">
     <a href="app.html" class="on">Schedule</a>
     <a href="streaks.html">Streaks</a>
     <a href="settings.html">Settings</a>
   </nav>
   <div class="right">
-    <div class="streak-pill"><span class="a"></span><span class="b"></span><span class="label-txt" id="streak-label">— streak 🔥</span></div>
+    <div class="streak-pill"><span class="a"></span><span class="b"></span><span class="flame-wrap"><span class="flame-glow"></span><span class="flame">🔥</span></span><span class="label-txt" id="streak-label">— streak</span></div>
     <span class="av av--me av--32" id="me-avatar">·</span>
   </div>
 </div>
@@ -58,17 +58,17 @@
             <span class="av av--me av--36" id="col-me-av">·</span>
             <div class="txt"><b>My day</b><span id="me-count">—</span></div>
           </div>
-          <div class="progress"><div class="bar"><i id="me-bar" style="width:0%"></i></div><span class="pct" id="me-pct">0%</span></div>
+          <div class="progress" id="me-progress"><div class="bar"><i id="me-bar" style="width:0%"></i><span class="sweep"></span></div><span class="pct" id="me-pct">0%</span></div>
         </div>
         <div class="task-list" id="me-tasks"></div>
       </div>
       <div class="person-col theirs">
         <div class="col-head">
           <div class="who">
-            <span class="av av--them av--36" id="col-them-av">·</span>
-            <div class="txt"><b id="them-title">Partner's day</b><span id="them-count">—</span></div>
+            <span class="presence-wrap" id="presence-wrap"><span class="aura1"></span><span class="aura2"></span><span class="av av--them av--36" id="col-them-av" style="position:relative;">·</span></span>
+            <div class="txt"><b id="them-title">Partner's day</b><span id="them-count">—</span><span class="here-note" style="font-size:12px;color:var(--faint);">here · looking at today<span class="dots"><i></i><i></i><i></i></span></span></div>
           </div>
-          <div class="progress theirs"><div class="bar"><i id="them-bar" style="width:0%"></i></div><span class="pct" id="them-pct">0%</span></div>
+          <div class="progress theirs" id="them-progress"><div class="bar"><i id="them-bar" style="width:0%"></i><span class="sweep"></span></div><span class="pct" id="them-pct">0%</span></div>
         </div>
         <div class="task-list" id="them-tasks"></div>
       </div>
@@ -86,7 +86,7 @@
   </div>
 </div>
 
-<button class="fab" id="fab-add" aria-label="Add task">+</button>
+<button class="fab" id="fab-add" aria-label="Add task"><span>+</span></button>
 
 <!-- TASK MODAL -->
 <div class="modal-veil" id="task-modal">

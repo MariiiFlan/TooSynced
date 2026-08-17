@@ -21,10 +21,20 @@
   let modalAllowNudge = true;
   let firstNudgeLoad = true;
 
+  tsSplash();
+  tsAurora();
+
   tsRequireAuth(async (user, pair) => {
     me = user;
     if (!pair) { location.href = "pair.html"; return; }
     partner = (pair.members || []).find(m => m.uid !== me.uid) || null;
+
+    /* presence (10) */
+    Store.startPresence();
+    Store.watchPresence((here) => {
+      document.getElementById("presence-wrap").classList.toggle("here", here);
+      document.querySelector(".person-col.theirs .who .txt").classList.toggle("presence-on", here);
+    });
 
     $("#me-avatar").textContent = initial(me.name);
     $("#col-me-av").textContent = initial(me.name);
@@ -69,11 +79,19 @@
     });
   }
 
-  /* ---------- view switching ---------- */
+  /* ---------- view switching (14: morph with directional push) ---------- */
+  const VIEW_ORDER = ["day", "week", "month"];
   $$(".viewseg button").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.view === currentView) return;
+    const forward = VIEW_ORDER.indexOf(b.dataset.view) > VIEW_ORDER.indexOf(currentView);
     currentView = b.dataset.view;
     $$(".viewseg button").forEach(x => x.classList.toggle("on", x === b));
     render();
+    const incoming = $("#view-" + currentView);
+    incoming.style.setProperty("--in-x", forward ? "22px" : "-22px");
+    incoming.classList.remove("view-in");
+    void incoming.offsetWidth; /* restart animation */
+    incoming.classList.add("view-in");
   }));
   $$(".mobile-tabs button").forEach(b => b.addEventListener("click", () => {
     $$(".mobile-tabs button").forEach(x => x.classList.toggle("on", x === b));
@@ -112,7 +130,7 @@
 
   function renderStreakPill() {
     const streak = sharedStreak();
-    $("#streak-label").textContent = streak > 0 ? streak + "-day streak 🔥" : "start your streak 🔥";
+    $("#streak-label").textContent = streak > 0 ? streak + "-day streak" : "start your streak";
   }
   function dayComplete(uid, dateStr) {
     const list = tasksFor(uid, dateStr);
@@ -136,31 +154,101 @@
   }
 
   /* ---------- DAY ---------- */
+  let lastRenderedDate = null;
   function renderDay() {
     $("#date-title").textContent = currentDate === TS.today() ? "Today · " + TS.prettyShort(currentDate) : TS.prettyDay(currentDate);
-    renderColumn(me.uid, "#me-tasks", "#me-count", "#me-bar", "#me-pct", true);
-    if (partner) renderColumn(partner.uid, "#them-tasks", "#them-count", "#them-bar", "#them-pct", false);
+    const dateChanged = lastRenderedDate !== currentDate;
+    lastRenderedDate = currentDate;
+    renderColumn(me.uid, "#me-tasks", "#me-count", "#me-bar", "#me-pct", true, dateChanged);
+    if (partner) renderColumn(partner.uid, "#them-tasks", "#them-count", "#them-bar", "#them-pct", false, dateChanged);
     else $("#them-tasks").innerHTML = emptyHtml("Share your invite link on the pairing page — their day shows up here.");
+    if (dateChanged) sweepBars();
+    renderNowLine();
+    maybeCelebrate();
   }
 
-  function renderColumn(uid, listSel, countSel, barSel, pctSel, isMine) {
+  /* 07: shimmer sweep across both bars, offset by 180ms */
+  function sweepBars() {
+    ["#me-progress", "#them-progress"].forEach(sel => {
+      const p = $(sel);
+      if (!p) return;
+      p.classList.remove("sweeping");
+      void p.offsetWidth;
+      p.classList.add("sweeping");
+    });
+  }
+
+  /* 08: the now line — creeping down the day, today only */
+  let nowLineTimer = null;
+  function renderNowLine() {
+    let line = $(".now-line");
+    const cols = $("#day-cols");
+    if (currentDate !== TS.today() || currentView !== "day") { if (line) line.remove(); return; }
+    if (!line) {
+      line = document.createElement("div");
+      line.className = "now-line";
+      line.innerHTML = '<span class="dot"></span><span class="lbl">NOW</span>';
+      cols.appendChild(line);
+    }
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const frac = Math.min(1, Math.max(0, (mins - 300) / (1380 - 300))); /* 5:00 → 23:00 */
+    line.style.top = (6 + frac * 88) + "%";
+    if (!nowLineTimer) nowLineTimer = setInterval(renderNowLine, 60000);
+  }
+
+  /* 12: both clear today → rings meet, once per day */
+  function maybeCelebrate() {
+    if (!partner || currentDate !== TS.today()) return;
+    const myList = tasksFor(me.uid, TS.today());
+    const theirList = tasksFor(partner.uid, TS.today());
+    if (!myList.length || !theirList.length) return;
+    const allMine = myList.every(t => isDone(t, TS.today()));
+    const allTheirs = theirList.every(t => isDone(t, TS.today()));
+    if (!allMine || !allTheirs) return;
+    const key = "ts_celebrated_" + TS.today();
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch (e) { return; }
+    const el = document.createElement("div");
+    el.className = "celebrate";
+    el.innerHTML =
+      '<div class="rings"><span class="glow"></span>' +
+        '<svg class="rl" width="46" height="46" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#7C3AED" stroke-width="7"/></svg>' +
+        '<svg class="rr" width="46" height="46" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="15" stroke="#F0A050" stroke-width="7"/></svg>' +
+      '</div><b>Both done today 🎉</b>';
+    document.body.appendChild(el);
+    tsChime();
+    setTimeout(() => el.remove(), 3100);
+  }
+
+  function renderColumn(uid, listSel, countSel, barSel, pctSel, isMine, cascade) {
     const list = tasksFor(uid, currentDate);
     const done = list.filter(t => isDone(t, currentDate)).length;
-    $(countSel).textContent = list.length ? done + " of " + list.length + " done" : (isMine ? "nothing planned" : "nothing planned");
+    $(countSel).textContent = list.length ? done + " of " + list.length + " done" : "nothing planned";
     const pct = list.length ? Math.round(done / list.length * 100) : 0;
     $(barSel).style.width = pct + "%";
     $(pctSel).textContent = pct + "%";
 
     const el = $(listSel);
     el.innerHTML = "";
+    el.classList.toggle("cascading", !!cascade); /* 06: stagger in on day load */
     if (!list.length) {
-      el.innerHTML = emptyHtml(isMine ? "Nothing planned. Tap + to add your first task." : "Their day is clear.");
+      /* 15: drifting motes when a day is clear */
+      el.innerHTML = isMine
+        ? tsEmptyState("Nothing planned yet.", "Tap + to add your first task")
+        : tsEmptyState("Their day is clear.", "");
       return;
     }
+    /* every task done + it's my column → reward the emptiness of the checklist */
     list.forEach(t => el.appendChild(taskRow(t, isMine)));
+    if (list.length && done === list.length) {
+      const note = document.createElement("div");
+      note.innerHTML = tsEmptyState("Nothing left today. Enjoy it. 💜", "");
+      note.firstChild.style.padding = "20px 16px";
+      el.appendChild(note.firstChild);
+    }
   }
 
-  function emptyHtml(msg) { return '<div class="empty-day">' + msg + "</div>"; }
+  function emptyHtml(msg) { return tsEmptyState(msg, ""); }
 
   function taskRow(t, isMine) {
     const done = isDone(t, currentDate);
@@ -175,7 +263,16 @@
     if (isMine) {
       ring.addEventListener("click", (e) => {
         e.stopPropagation();
-        Store.setDone(t.id, currentDate, !done);
+        if (!done && !tsReducedMotion()) {
+          /* 01: bloom — squash, fill, draw the tick, ripple, then settle */
+          row.classList.add("blooming");
+          ring.innerHTML =
+            '<span class="ring-ripple"></span>' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="position:relative;"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="34"/></svg>';
+          setTimeout(() => { Store.setDone(t.id, currentDate, true); }, 520);
+        } else {
+          Store.setDone(t.id, currentDate, !done);
+        }
         if (!done) tsToast("Nice. " + t.name + " ✓");
       });
     } else ring.style.pointerEvents = "none";
@@ -201,12 +298,16 @@
     }
     if (!isMine && missed && t.allowNudge !== false) {
       const nb = document.createElement("button");
-      nb.className = "btn btn--nudge"; nb.innerHTML = "🔔 Nudge";
+      nb.className = "btn btn--nudge"; nb.innerHTML = '<span class="bell">🔔</span> Nudge';
       nb.addEventListener("click", async (e) => {
         e.stopPropagation();
         const sent = await Store.nudgesSentToday();
         if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today — keep it kind 💜"); return; }
-        nb.disabled = true; nb.textContent = "Sent 💜";
+        /* 03: bell wobbles, dot flies to their avatar, avatar bumps */
+        nb.classList.add("wobbling");
+        tsFlyDot(nb, document.getElementById("col-them-av"));
+        nb.disabled = true;
+        setTimeout(() => { nb.textContent = "Sent 💜"; }, 450);
         await Store.sendNudge(t.owner, t.id, currentDate);
         tsChime();
         tsToast("Nudge sent to " + (partner ? partner.name : "your partner"));
@@ -220,6 +321,9 @@
         e.stopPropagation();
         const sent = await Store.nudgesSentToday();
         if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today — keep it kind 💜"); return; }
+        nb.classList.add("wobbling");
+        setTimeout(() => nb.classList.remove("wobbling"), 900);
+        tsFlyDot(nb, document.getElementById("col-them-av"));
         await Store.sendNudge(t.owner, t.id, currentDate);
         tsChime();
         tsToast("Reminder sent 💜");
@@ -345,9 +449,13 @@
     buildIconRow();
     syncRepeatUI();
     modal.classList.add("open");
+    $("#fab-add").classList.add("open"); /* 13: + rotates to ✕ */
     setTimeout(() => $("#t-name").focus(), 220);
   }
-  function closeModal() { modal.classList.remove("open"); }
+  function closeModal() {
+    modal.classList.remove("open");
+    $("#fab-add").classList.remove("open");
+  }
 
   function syncRepeatUI() {
     $$("#repeat-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.rep === modalRepeat));
@@ -368,7 +476,10 @@
     $("#nudge-switch").classList.toggle("on", modalAllowNudge);
   });
 
-  $("#fab-add").addEventListener("click", () => openModal(null));
+  $("#fab-add").addEventListener("click", () => {
+    if (modal.classList.contains("open")) closeModal();
+    else openModal(null);
+  });
   $("#modal-close").addEventListener("click", closeModal);
   $("#modal-cancel").addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });

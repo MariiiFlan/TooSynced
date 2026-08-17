@@ -5,6 +5,7 @@
   const $ = (s) => document.querySelector(s);
   const joinCode = new URLSearchParams(location.search).get("join");
   let inviteUrl = "";
+  tsAurora();
 
   tsRequireAuth(async (user, pair) => {
     const initial = (user.name || "?").charAt(0).toUpperCase();

@@ -126,3 +126,75 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+
+/* ============================================================
+   Motion helpers
+   ============================================================ */
+window.tsReducedMotion = () =>
+  window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* aurora background (05) — call once per page */
+window.tsAurora = () => {
+  if (document.querySelector(".aurora")) return;
+  const a = document.createElement("div");
+  a.className = "aurora";
+  a.innerHTML = '<span class="a"></span><span class="b"></span><span class="c"></span>';
+  document.body.prepend(a);
+};
+
+/* launch splash (04) — once per session, app shell pages */
+window.tsSplash = () => {
+  if (tsReducedMotion()) return;
+  try { if (sessionStorage.getItem("ts_splash")) return; sessionStorage.setItem("ts_splash", "1"); }
+  catch (e) { return; }
+  const s = document.createElement("div");
+  s.className = "splash";
+  s.innerHTML =
+    '<svg width="86" height="86" viewBox="0 0 100 100" fill="none">' +
+      '<g class="frame"><rect x="12" y="18" width="76" height="68" rx="18" stroke="#B79AF7" stroke-width="9"/><path d="M12 36h76" stroke="#B79AF7" stroke-width="9"/></g>' +
+      '<circle class="ring-l" cx="41" cy="61" r="15" stroke="#7C3AED" stroke-width="9" fill="none"/>' +
+      '<circle class="ring-r" cx="59" cy="61" r="15" stroke="#4C1D95" stroke-width="9" fill="none"/>' +
+    '</svg>' +
+    '<div class="word"><span>T</span><svg width="25" height="17" viewBox="2 1 66 44" fill="none"><circle cx="24" cy="23" r="17.5" stroke="#7C3AED" stroke-width="9"/><circle cx="46" cy="23" r="17.5" stroke="#4C1D95" stroke-width="9"/></svg><span>Synced</span></div>';
+  document.body.appendChild(s);
+  setTimeout(() => s.remove(), 2100);
+};
+
+/* nudge dot flight (03) — from a button to an avatar */
+window.tsFlyDot = (fromEl, toEl) => {
+  if (tsReducedMotion() || !fromEl || !toEl) return;
+  const f = fromEl.getBoundingClientRect(), t = toEl.getBoundingClientRect();
+  const dot = document.createElement("span");
+  dot.className = "fly-dot";
+  dot.style.left = (f.left + f.width / 2 - 7) + "px";
+  dot.style.top = (f.top + f.height / 2 - 7) + "px";
+  document.body.appendChild(dot);
+  const dx = (t.left + t.width / 2) - (f.left + f.width / 2);
+  const dy = (t.top + t.height / 2) - (f.top + f.height / 2);
+  dot.animate([
+    { transform: "translate(0,0) scale(.5)", opacity: 0 },
+    { transform: "translate(0,0) scale(1)", opacity: 1, offset: .15 },
+    { transform: `translate(${dx}px,${dy}px) scale(.7)`, opacity: .9 }
+  ], { duration: 650, easing: "cubic-bezier(.4,0,.5,1)" }).onfinish = () => {
+    dot.remove();
+    toEl.classList.add("hit");
+    setTimeout(() => toEl.classList.remove("hit"), 700);
+  };
+};
+
+/* empty-state motes (15) */
+window.tsEmptyState = (msg, sub) => {
+  let motes = "";
+  for (let i = 0; i < 10; i++) {
+    const size = (3 + Math.random() * 5).toFixed(1);
+    motes += `<span class="mote" style="width:${size}px;height:${size}px;left:${(Math.random()*94).toFixed(1)}%;top:${(55+Math.random()*45).toFixed(1)}%;--dx:${(Math.random()*40-20).toFixed(0)}px;--dy:${(-80-Math.random()*70).toFixed(0)}px;--dur:${(7+Math.random()*6).toFixed(1)}s;--delay:${(Math.random()*6).toFixed(1)}s"></span>`;
+  }
+  return '<div class="empty-day">' + motes +
+    '<svg class="logo-mark" width="44" height="44" viewBox="0 0 100 100" fill="none">' +
+      '<rect x="12" y="18" width="76" height="68" rx="18" stroke="#D8C9F6" stroke-width="9"/><path d="M12 36h76" stroke="#D8C9F6" stroke-width="9"/>' +
+      '<circle cx="41" cy="61" r="14" stroke="#B79AF7" stroke-width="9"/><circle cx="59" cy="61" r="14" stroke="#9A6DF2" stroke-width="9"/>' +
+    '</svg>' +
+    '<span style="position:relative;">' + msg + '</span>' +
+    (sub ? '<span style="position:relative;font-size:13px;color:var(--faint);">' + sub + '</span>' : '') +
+    '</div>';
+};
