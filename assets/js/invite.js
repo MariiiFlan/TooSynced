@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — invite people into the active sync
+   TooSynced - invite people into the active sync
    ============================================================ */
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -40,8 +40,8 @@
     const group = sync.kind === "group";
     $("#sync-title").textContent = sync.name;
     $("#sync-sub").textContent = group
-      ? "Group sync — send this to everyone you want in."
-      : "Two Sync — send this to your person.";
+      ? "Group sync - send this to everyone you want in."
+      : "Two Sync - send this to your person.";
     $("#sync-photo").innerHTML = sync.photo
       ? '<img src="' + sync.photo + '" alt="">'
       : (group ? "👥" : "🫂");
@@ -62,7 +62,7 @@
     if (enough) {
       $("#waiting-title").textContent = group ? "Your group is rolling" : "You're synced";
       $("#waiting-sub").textContent = group
-        ? "Invite more anytime — the link keeps working."
+        ? "Invite more anytime - the link keeps working."
         : "Head to the schedule and add your first task.";
       const chip = document.querySelector(".pending-chip");
       chip.innerHTML = '<i style="background:var(--green);"></i> ACTIVE';
@@ -79,10 +79,10 @@
 
     $("#btn-copy").addEventListener("click", async () => {
       try { await navigator.clipboard.writeText(inviteUrl); tsToast("Invite link copied"); }
-      catch { tsToast("Couldn't copy — long-press the link instead"); }
+      catch { tsToast("Couldn't copy - long-press the link instead"); }
     });
     $("#btn-share-text").addEventListener("click", () => {
-      const msg = "Join my sync on TooSynced — we keep each other on schedule. " + inviteUrl;
+      const msg = "Join my sync on TooSynced - we keep each other on schedule. " + inviteUrl;
       if (navigator.share) navigator.share({ text: msg }).catch(() => {});
       else location.href = "sms:?&body=" + encodeURIComponent(msg);
     });

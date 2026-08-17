@@ -31,7 +31,7 @@ service cloud.firestore {
 
       allow delete: if false;
 
-      // tasks, completions, nudges, praises, messages, presence: members only
+      // tasks, completions, nudges, praises, rsvps, messages, presence: members only
       match /{sub=**} {
         allow read, write: if request.auth != null
           && get(/databases/$(database)/documents/syncs/$(syncId)).data.memberUids.hasAny([request.auth.uid]);

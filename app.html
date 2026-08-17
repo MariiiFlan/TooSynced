@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Schedule — TooSynced</title>
+<title>Schedule - TooSynced</title>
 <meta name="theme-color" content="#FBFAFF">
-<link rel="manifest" href="manifest.webmanifest?v=5">
-<link rel="icon" href="icons/favicon.png?v=5">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=5">
+<link rel="manifest" href="manifest.webmanifest?v=6">
+<link rel="icon" href="icons/favicon.png?v=6">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css?v=5">
+<link rel="stylesheet" href="assets/css/main.css?v=6">
 </head>
 <body>
 
@@ -24,7 +24,7 @@
     <a href="settings.html">Settings</a>
   </nav>
   <div class="right">
-    <div class="streak-pill"><span class="flame-wrap"><span class="flame-glow"></span><span class="flame">🔥</span></span><span class="label-txt" id="streak-label">— streak</span></div>
+    <div class="streak-pill"><span class="flame-wrap"><span class="flame-glow"></span><span class="flame">🔥</span></span><span class="label-txt" id="streak-label">- streak</span></div>
     <div class="sync-switch" id="sync-switch"></div>
   </div>
 </div>
@@ -113,9 +113,32 @@
       </div>
 
       <div class="field">
+        <label for="t-place">Where <span class="opt">optional</span></label>
+        <input class="input" id="t-place" placeholder="e.g. Gold's Gym, Perris" maxlength="120" autocomplete="off">
+        <span style="font-size:12px;color:var(--faint);font-weight:400;">Anyone in the sync can tap it to open directions.</span>
+      </div>
+
+      <div class="field">
         <label for="t-note">Note <span class="opt">optional</span></label>
         <textarea class="input" id="t-note" placeholder="Anything you want to remember"></textarea>
       </div>
+
+      <div class="field" style="gap:9px;">
+        <label>Who sees this</label>
+        <div class="pills" id="scope-pills">
+          <button class="pill on" data-scope="sync" type="button">This sync</button>
+          <button class="pill" data-scope="all" type="button">All my syncs</button>
+          <button class="pill" data-scope="pick" type="button">Pick syncs</button>
+          <button class="pill" data-scope="private" type="button">Private</button>
+        </div>
+        <div id="scope-pick-list" class="hidden" style="display:flex;flex-direction:column;gap:8px;padding-top:4px;"></div>
+        <span style="font-size:12px;color:var(--faint);font-weight:400;" id="scope-hint">Everyone in this sync can see it.</span>
+      </div>
+
+      <button class="toggle-row" id="rsvp-toggle" type="button">
+        <span class="switch" id="rsvp-switch"><i></i></span>
+        <span>Open invite - let people say if they're coming</span>
+      </button>
 
       <button class="toggle-row" id="nudge-toggle" type="button">
         <span class="switch on" id="nudge-switch"><i></i></span>
@@ -132,7 +155,57 @@
   </div>
 </div>
 
-<script src="assets/js/config.js?v=5"></script>
+<!-- TASK DETAIL -->
+<div class="modal-veil" id="detail-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <div class="modal-head">
+      <div class="t" style="flex-direction:row;align-items:center;gap:12px;">
+        <span id="d-icon" style="font-size:28px;"></span>
+        <div style="display:flex;flex-direction:column;min-width:0;">
+          <b id="d-title">Task</b>
+          <span id="d-when">-</span>
+        </div>
+      </div>
+      <button class="modal-x" id="d-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="d-owner" style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);font-weight:500;"></div>
+      <a id="d-place" class="hidden" target="_blank" rel="noopener"
+         style="display:flex;align-items:center;gap:11px;background:var(--chip-bg);border:1px solid var(--chip-border);border-radius:14px;padding:14px 16px;text-decoration:none;">
+        <span style="font-size:20px;">📍</span>
+        <span style="display:flex;flex-direction:column;min-width:0;">
+          <b id="d-place-text" style="font-size:15px;color:var(--deep);"></b>
+          <span style="font-size:12px;color:var(--primary);font-weight:600;">Tap for directions</span>
+        </span>
+      </a>
+      <div id="d-note-wrap" class="hidden field">
+        <label>Note</label>
+        <div id="d-note" style="font-size:15px;line-height:1.55;color:var(--ink);background:var(--bg-alt);border-radius:14px;padding:14px 16px;white-space:pre-wrap;"></div>
+      </div>
+      <div id="d-rsvp-wrap" class="hidden field" style="gap:10px;">
+        <label>Are you coming?</label>
+        <div class="pills" id="d-rsvp-pills">
+          <button class="pill" data-rsvp="in" type="button">✅ I'm in</button>
+          <button class="pill" data-rsvp="maybe" type="button">🤔 Maybe</button>
+          <button class="pill" data-rsvp="out" type="button">❌ Can't</button>
+        </div>
+        <div id="d-rsvp-list" style="display:flex;flex-direction:column;gap:9px;padding-top:4px;"></div>
+      </div>
+      <div id="d-praise-wrap" class="hidden field">
+        <label>Cheers</label>
+        <div id="d-praise-list" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer" style="margin-left:0;width:100%;">
+        <button class="btn btn--ghost" id="d-action" style="flex:1;">Close</button>
+        <button class="btn btn--primary hidden" id="d-edit">Edit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/config.js?v=6"></script>
 <script>
   if (!CONFIG.DEMO_MODE) {
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
@@ -140,8 +213,8 @@
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
   }
 </script>
-<script src="assets/js/store.js?v=5"></script>
-<script src="assets/js/ui.js?v=5"></script>
-<script src="assets/js/app.js?v=5"></script>
+<script src="assets/js/store.js?v=6"></script>
+<script src="assets/js/ui.js?v=6"></script>
+<script src="assets/js/app.js?v=6"></script>
 </body>
 </html>

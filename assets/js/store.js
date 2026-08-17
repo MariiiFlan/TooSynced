@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — data layer
+   TooSynced - data layer
    One API, two backends (DemoStore / FirebaseStore), chosen by
    CONFIG.DEMO_MODE.
 
@@ -39,14 +39,14 @@ function tsE164(raw) {
 function tsRid(p) { return (p || "id") + "_" + Math.random().toString(36).slice(2, 10); }
 
 /* ============================================================
-   DEMO STORE — localStorage, no setup
+   DEMO STORE - localStorage, no setup
    ============================================================ */
 const DemoStore = (() => {
   const KEY = "toosynced_demo_v2";
-  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [] };
+  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [] };
 
   function blank() {
-    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], messages: {}, nudgeCount: {} };
+    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], messages: {}, rsvps: {}, locations: {}, nudgeCount: {} };
   }
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
@@ -64,6 +64,8 @@ const DemoStore = (() => {
     if (kind === "nudges" || kind === "all") L.nudges.forEach(cb => cb(db.nudges.filter(inSync)));
     if (kind === "praises" || kind === "all") L.praises.forEach(cb => cb(db.praises.filter(inSync)));
     if (kind === "messages" || kind === "all") L.messages.forEach(cb => cb(((db.messages || {})[sid] || []).slice().sort((a, b) => a.at - b.at)));
+    if (kind === "rsvps" || kind === "all") L.rsvps.forEach(cb => cb(Object.values(db.rsvps || {}).filter(inSync)));
+    if (kind === "locations" || kind === "all") L.locations.forEach(cb => cb(db.locations || {}));
     if (kind === "sync" || kind === "all") L.sync.forEach(cb => cb(s));
     if (kind === "syncs" || kind === "all") L.syncs.forEach(cb => cb(Object.values(db.syncs)));
   }
@@ -112,7 +114,7 @@ const DemoStore = (() => {
       return true;
     },
     async confirmPhoneCode(code, name) {
-      if (code !== "123456") throw new Error("Wrong code — in demo mode it's 123456.");
+      if (code !== "123456") throw new Error("Wrong code - in demo mode it's 123456.");
       const db = load();
       if (!db.user) db.user = { uid: "me", name: name || "You", activeSyncId: null };
       save(db); return db.user;
@@ -210,21 +212,99 @@ const DemoStore = (() => {
 
     /* ---------- tasks ---------- */
     watchTasks(cb) { L.tasks.push(cb); emit("tasks"); },
-    async addTask(t) {
+    /* targetSyncIds: which syncs this task should appear in (defaults to the active one) */
+    async addTask(t, targetSyncIds) {
       const db = load(); const s = active(db);
-      const id = tsRid("t");
-      db.tasks[id] = { ...t, id, syncId: s.id, owner: db.user.uid, createdAt: Date.now() };
-      save(db); emit("tasks"); return id;
+      const targets = (targetSyncIds && targetSyncIds.length) ? targetSyncIds : [s.id];
+      const originId = tsRid("o");
+      let firstId = null;
+      targets.forEach(sid => {
+        if (!db.syncs[sid]) return;
+        const id = tsRid("t");
+        if (!firstId) firstId = id;
+        db.tasks[id] = { ...t, id, originId, syncId: sid, owner: db.user.uid, createdAt: Date.now() };
+      });
+      save(db); emit("tasks"); return firstId;
     },
-    async updateTask(id, patch) {
+    async updateTask(id, patch, everywhere) {
       const db = load();
-      if (db.tasks[id]) db.tasks[id] = { ...db.tasks[id], ...patch };
+      const t = db.tasks[id];
+      if (!t) return;
+      const ids = everywhere && t.originId
+        ? Object.keys(db.tasks).filter(k => db.tasks[k].originId === t.originId)
+        : [id];
+      ids.forEach(k => { db.tasks[k] = { ...db.tasks[k], ...patch }; });
       save(db); emit("tasks");
     },
-    async deleteTask(id) {
-      const db = load(); delete db.tasks[id];
-      Object.keys(db.completions).forEach(k => { if (k.startsWith(id + "_")) delete db.completions[k]; });
+    async deleteTask(id, everywhere) {
+      const db = load();
+      const t = db.tasks[id];
+      if (!t) return;
+      const ids = everywhere && t.originId
+        ? Object.keys(db.tasks).filter(k => db.tasks[k].originId === t.originId)
+        : [id];
+      ids.forEach(k => {
+        delete db.tasks[k];
+        Object.keys(db.completions).forEach(c => { if (c.startsWith(k + "_")) delete db.completions[c]; });
+      });
       save(db); emit("all");
+    },
+
+    /* ---------- RSVP (open-invite tasks) ---------- */
+    watchRsvps(cb) { L.rsvps.push(cb); emit("rsvps"); },
+    async setRsvp(taskId, dateStr, status) {
+      const db = load(); const s = active(db);
+      if (!db.rsvps) db.rsvps = {};
+      const k = taskId + "_" + dateStr + "_" + db.user.uid;
+      if (status) db.rsvps[k] = { syncId: s.id, taskId, date: dateStr, uid: db.user.uid, status, at: Date.now() };
+      else delete db.rsvps[k];
+      save(db); emit("rsvps");
+      /* demo: the others answer too */
+      const others = s.memberUids.filter(u => u !== db.user.uid);
+      if (status && others.length) setTimeout(() => {
+        const d2 = load();
+        if (!d2.rsvps) d2.rsvps = {};
+        const picks = ["in", "in", "maybe", "out"];
+        others.forEach((u, i) => {
+          const kk = taskId + "_" + dateStr + "_" + u;
+          if (!d2.rsvps[kk]) d2.rsvps[kk] = {
+            syncId: s.id, taskId, date: dateStr, uid: u,
+            status: picks[(i + 1) % picks.length], at: Date.now()
+          };
+        });
+        save(d2); emit("rsvps");
+      }, 2200);
+    },
+
+    /* ---------- location check-in ---------- */
+    async shareLocation(coords) {
+      const db = load();
+      if (!db.locations) db.locations = {};
+      db.locations[db.user.uid] = { ...coords, at: Date.now() };
+      save(db); emit("locations");
+    },
+    async clearLocation() {
+      const db = load();
+      if (db.locations) delete db.locations[db.user.uid];
+      save(db); emit("locations");
+    },
+    watchLocations(cb) {
+      L.locations.push(cb);
+      const db = load(); const s = active(db);
+      cb(db.locations || {});
+      /* demo: everyone else checks in near you a moment later */
+      if (s) setTimeout(() => {
+        const d2 = load();
+        if (!d2.locations) d2.locations = {};
+        const base = d2.locations[d2.user.uid] || { lat: 34.1483, lng: -118.1445 };
+        s.memberUids.filter(u => u !== d2.user.uid).forEach((u, i) => {
+          if (!d2.locations[u]) d2.locations[u] = {
+            lat: base.lat + (i + 1) * 0.012, lng: base.lng - (i + 1) * 0.009,
+            label: ["Gold's Gym", "Home", "Campus library"][i % 3], at: Date.now() - (i + 1) * 300000
+          };
+        });
+        save(d2); emit("locations");
+      }, 3000);
     },
 
     /* ---------- completions ---------- */
@@ -472,7 +552,7 @@ const FirebaseStore = (() => {
       const doc = q.docs[0], d = doc.data();
       if (!d.memberUids.includes(uid)) {
         if ((d.kind || "two") === "two" && d.memberUids.length >= 2)
-          throw new Error("That sync is full — a Two Sync is just two people. Ask them to start a Group Sync.");
+          throw new Error("That sync is full - a Two Sync is just two people. Ask them to start a Group Sync.");
         const me = await this.getProfile();
         await doc.ref.update({
           memberUids: firebase.firestore.FieldValue.arrayUnion(uid),
@@ -495,9 +575,74 @@ const FirebaseStore = (() => {
         .onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
       unsubs.push(un);
     },
-    async addTask(t) { const r = await syncRef().collection("tasks").add({ ...t, owner: uid, createdAt: Date.now() }); return r.id; },
-    async updateTask(id, patch) { await syncRef().collection("tasks").doc(id).update(patch); },
-    async deleteTask(id) { await syncRef().collection("tasks").doc(id).delete(); },
+    async addTask(t, targetSyncIds) {
+      const targets = (targetSyncIds && targetSyncIds.length) ? targetSyncIds : [syncId];
+      const originId = tsRid("o");
+      const payload = { ...t, originId, owner: uid, createdAt: Date.now() };
+      const refs = await Promise.all(targets.map(sid =>
+        db.collection("syncs").doc(sid).collection("tasks").add(payload).catch(() => null)
+      ));
+      const first = refs.find(r => r);
+      return first ? first.id : null;
+    },
+    async updateTask(id, patch, everywhere) {
+      await syncRef().collection("tasks").doc(id).update(patch);
+      if (!everywhere) return;
+      const snap = await syncRef().collection("tasks").doc(id).get();
+      const originId = (snap.data() || {}).originId;
+      if (!originId) return;
+      const me = await this.getProfile();
+      await Promise.all(((me && me.syncIds) || []).filter(sid => sid !== syncId).map(async sid => {
+        const q = await db.collection("syncs").doc(sid).collection("tasks")
+          .where("originId", "==", originId).get().catch(() => null);
+        if (!q) return;
+        return Promise.all(q.docs.map(d => d.ref.update(patch).catch(() => {})));
+      }));
+    },
+    async deleteTask(id, everywhere) {
+      const snap = await syncRef().collection("tasks").doc(id).get();
+      const originId = (snap.data() || {}).originId;
+      await syncRef().collection("tasks").doc(id).delete();
+      if (!everywhere || !originId) return;
+      const me = await this.getProfile();
+      await Promise.all(((me && me.syncIds) || []).filter(sid => sid !== syncId).map(async sid => {
+        const q = await db.collection("syncs").doc(sid).collection("tasks")
+          .where("originId", "==", originId).get().catch(() => null);
+        if (!q) return;
+        return Promise.all(q.docs.map(d => d.ref.delete().catch(() => {})));
+      }));
+    },
+
+    /* ---------- RSVP ---------- */
+    watchRsvps(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("rsvps").onSnapshot(s => cb(s.docs.map(d => d.data())));
+      unsubs.push(un);
+    },
+    async setRsvp(taskId, dateStr, status) {
+      const ref = syncRef().collection("rsvps").doc(taskId + "_" + dateStr + "_" + uid);
+      if (status) await ref.set({ taskId, date: dateStr, uid, status, at: Date.now() });
+      else await ref.delete();
+    },
+
+    /* ---------- location check-in ---------- */
+    async shareLocation(coords) {
+      await syncRef().collection("presence").doc(uid)
+        .set({ at: Date.now(), loc: { ...coords, at: Date.now() } }, { merge: true });
+    },
+    async clearLocation() {
+      await syncRef().collection("presence").doc(uid)
+        .set({ loc: firebase.firestore.FieldValue.delete() }, { merge: true }).catch(() => {});
+    },
+    watchLocations(cb) {
+      if (!syncId) { cb({}); return; }
+      const un = syncRef().collection("presence").onSnapshot(s => {
+        const out = {};
+        s.docs.forEach(d => { const v = d.data() || {}; if (v.loc) out[d.id] = v.loc; });
+        cb(out);
+      });
+      unsubs.push(un);
+    },
 
     watchCompletions(cb) {
       if (!syncId) { cb([]); return; }

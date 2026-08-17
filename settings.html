@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Settings — TooSynced</title>
+<title>Settings - TooSynced</title>
 <meta name="theme-color" content="#FBFAFF">
-<link rel="manifest" href="manifest.webmanifest?v=5">
-<link rel="icon" href="icons/favicon.png?v=5">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=5">
+<link rel="manifest" href="manifest.webmanifest?v=6">
+<link rel="icon" href="icons/favicon.png?v=6">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css?v=5">
+<link rel="stylesheet" href="assets/css/main.css?v=6">
 </head>
 <body>
 
@@ -36,7 +36,7 @@
       <a class="sync-card" href="profile.html" style="text-decoration:none;color:inherit;">
         <span id="s-avatar"></span>
         <span class="body">
-          <b id="s-display-name">—</b>
+          <b id="s-display-name">-</b>
           <span id="s-birthday-note">Add a photo, name and birthday</span>
         </span>
         <span style="color:var(--faint);font-size:18px;">›</span>
@@ -61,13 +61,26 @@
       <div class="field" style="gap:9px;">
         <span class="invite-label">INVITE LINK</span>
         <div class="invite-row">
-          <div class="invite-link" id="invite-link">—</div>
+          <div class="invite-link" id="invite-link">-</div>
           <button class="btn btn--ghost" id="btn-copy">Copy</button>
         </div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <a class="btn btn--ghost" href="syncs.html">All my syncs</a>
         <button class="btn btn--ghost" id="btn-leave" style="color:#B03A52;">Leave this sync</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <b>Location</b>
+      <p style="font-size:14px;color:var(--muted);line-height:1.5;">
+        Drop a pin so your sync knows where you are right now. It's a one-time
+        check-in, not live tracking - nothing updates until you tap again.
+      </p>
+      <div id="loc-status" style="font-size:14px;font-weight:600;color:var(--muted);">Not sharing</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn--primary" id="btn-share-loc">Share where I am</button>
+        <button class="btn btn--ghost hidden" id="btn-clear-loc" style="color:#B03A52;">Stop sharing</button>
       </div>
     </div>
 
@@ -87,7 +100,7 @@
   </div>
 </div>
 
-<script src="assets/js/config.js?v=5"></script>
+<script src="assets/js/config.js?v=6"></script>
 <script>
   if (!CONFIG.DEMO_MODE) {
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
@@ -95,8 +108,8 @@
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
   }
 </script>
-<script src="assets/js/store.js?v=5"></script>
-<script src="assets/js/ui.js?v=5"></script>
-<script src="assets/js/settings.js?v=5"></script>
+<script src="assets/js/store.js?v=6"></script>
+<script src="assets/js/ui.js?v=6"></script>
+<script src="assets/js/settings.js?v=6"></script>
 </body>
 </html>

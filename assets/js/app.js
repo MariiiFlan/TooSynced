@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — schedule
+   TooSynced - schedule
    Works for a Two Sync (two columns) or a Group Sync (a column
    per person). Everything below is sync-aware.
    ============================================================ */
@@ -17,6 +17,9 @@
   let editingId = null, modalRepeat = "none", modalDays = new Set();
   let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
   let firstNudgeLoad = true, firstPraiseLoad = true;
+  let rsvps = [], locations = {}, mySyncs = [];
+  let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
+  let detailTask = null;
 
   tsSplash();
   tsAurora();
@@ -36,6 +39,9 @@
     });
     Store.watchNudges((n) => { nudges = n; handleNudges(); firstNudgeLoad = false; });
     Store.watchPraises((p) => { praises = p; handlePraises(); firstPraiseLoad = false; render(); });
+    Store.watchRsvps((r) => { rsvps = r; render(); if (detailTask) paintDetail(detailTask); });
+    Store.watchLocations((l) => { locations = l || {}; render(); });
+    Store.watchSyncs((list) => { mySyncs = list || []; });
   });
 
   function applySync(s) {
@@ -55,6 +61,7 @@
   function tasksFor(uid, dateStr) {
     return tasks
       .filter(t => t.owner === uid && TS.occursOn(t, dateStr))
+      .filter(t => !t.private || t.owner === me.uid)
       .sort((a, b) => {
         /* timed tasks in clock order first, "anytime" ones after */
         if (a.time && b.time) return a.time.localeCompare(b.time);
@@ -65,6 +72,16 @@
   }
   function praisesFor(taskId, dateStr) {
     return praises.filter(p => p.taskId === taskId && p.date === dateStr);
+  }
+  function rsvpsFor(taskId, dateStr) {
+    return rsvps.filter(r => r.taskId === taskId && r.date === dateStr);
+  }
+  function myRsvp(taskId, dateStr) {
+    const r = rsvpsFor(taskId, dateStr).find(x => x.uid === me.uid);
+    return r ? r.status : null;
+  }
+  function mapUrl(place) {
+    return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(place);
   }
 
   /* ---------- incoming nudges / praise ---------- */
@@ -94,6 +111,34 @@
       Store.markPraiseSeen(p.id);
     });
   }
+  /* ---------- where people are (opt-in check-in) ---------- */
+  function paintLocations() {
+    members.forEach(m => {
+      const col = document.querySelector('.person-col[data-uid="' + m.uid + '"]');
+      if (!col) return;
+      const old = col.querySelector(".loc-pin");
+      if (old) old.remove();
+      const loc = locations[m.uid];
+      if (!loc) return;
+      const a = document.createElement("a");
+      a.className = "loc-pin";
+      a.target = "_blank"; a.rel = "noopener";
+      a.href = loc.lat != null
+        ? "https://www.google.com/maps/search/?api=1&query=" + loc.lat + "," + loc.lng
+        : mapUrl(loc.label || "");
+      a.title = (loc.label || "Shared location") + " · " + timeAgo(loc.at);
+      a.innerHTML = "📍 " + tsEsc(loc.label || "here") + '<span class="ago">' + timeAgo(loc.at) + "</span>";
+      col.querySelector(".col-head .who .txt").appendChild(a);
+    });
+  }
+  function timeAgo(ts) {
+    const mins = Math.round((Date.now() - (ts || 0)) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    const h = Math.round(mins / 60);
+    return h < 24 ? h + "h ago" : Math.round(h / 24) + "d ago";
+  }
+
   function paintPresence(hereUids) {
     members.forEach(m => {
       const el = document.querySelector('[data-presence="' + m.uid + '"]');
@@ -189,6 +234,7 @@
     renderNowLine();
     maybeCelebrate();
     paintPresence([]);
+    paintLocations();
   }
 
   function personColumn(m, cascade) {
@@ -276,6 +322,33 @@
 
     row.append(ring, emoji, mid);
 
+    /* little badges so you can see at a glance what a task carries */
+    const badges = document.createElement("span");
+    badges.style.cssText = "display:flex;align-items:center;gap:5px;flex:none;";
+    if (t.place) {
+      const b = document.createElement("span");
+      b.textContent = "📍"; b.title = t.place; b.style.fontSize = "13px";
+      badges.appendChild(b);
+    }
+    if (t.note) {
+      const b = document.createElement("span");
+      b.textContent = "📝"; b.title = "Has a note"; b.style.fontSize = "13px";
+      badges.appendChild(b);
+    }
+    if (t.private) {
+      const b = document.createElement("span");
+      b.textContent = "🔒"; b.title = "Private - only you see this"; b.style.fontSize = "13px";
+      badges.appendChild(b);
+    }
+    if (t.rsvp) {
+      const going = rsvpsFor(t.id, currentDate).filter(r => r.status === "in").length;
+      const b = document.createElement("span");
+      b.className = "anytime-chip";
+      b.textContent = going ? going + " IN" : "INVITE";
+      badges.appendChild(b);
+    }
+    if (badges.children.length) row.appendChild(badges);
+
     /* praise counts anyone can see */
     const pr = praisesFor(t.id, currentDate);
     if (pr.length) {
@@ -299,7 +372,7 @@
       }
       row.dataset.clickable = "1";
       row.style.cursor = "pointer";
-      row.addEventListener("click", () => openModal(t));
+      row.addEventListener("click", () => openDetail(t, owner));
     } else {
       /* someone else's task */
       if (done) {
@@ -310,7 +383,7 @@
         pb.addEventListener("click", (e) => { e.stopPropagation(); openPraise(pb, t, owner); });
         row.appendChild(pb);
       } else if (t.allowNudge !== false) {
-        /* nudge any task they haven't finished — louder once it's overdue */
+        /* nudge any task they haven't finished - louder once it's overdue */
         const nb = document.createElement("button");
         if (missed) {
           nb.className = "btn btn--nudge";
@@ -323,7 +396,7 @@
         nb.addEventListener("click", async (e) => {
           e.stopPropagation();
           const sent = await Store.nudgesSentToday();
-          if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today — keep it kind 💜"); return; }
+          if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today - keep it kind 💜"); return; }
           nb.classList.add("wobbling");
           const target = row.closest(".person-col").querySelector(".presence-wrap .av");
           tsFlyDot(nb, target || nb);
@@ -335,6 +408,9 @@
         });
         row.appendChild(nb);
       }
+      row.dataset.clickable = "1";
+      row.style.cursor = "pointer";
+      row.addEventListener("click", () => openDetail(t, owner));
     }
     return row;
   }
@@ -430,10 +506,12 @@
       const all = members.flatMap(m => tasksFor(m.uid, d).map(t => ({ t, m })));
       let html = '<div class="wd"><span>' + TS.parseDate(d).toLocaleDateString("en-US", { weekday: "short" }) +
         '</span><span class="num">' + TS.parseDate(d).getDate() + "</span></div>";
-      all.slice(0, 4).forEach(({ t }) => {
+      all.slice(0, 4).forEach(({ t, m }) => {
         const dn = isDone(t, d), ms = !dn && TS.isMissed(t, d, completions);
-        html += '<div class="mini ' + (dn ? "d" : ms ? "m" : "") + '"><span class="dot"></span>' +
-          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + tsEsc(t.name) + "</span></div>";
+        html += '<div class="mini ' + (dn ? "d" : ms ? "m" : "") + '">' +
+          '<span class="dot"' + (dn || ms ? "" : ' style="background:' + (m.color || "#E4DAF6") + '"') + "></span>" +
+          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          (t.icon || "") + " " + tsEsc(t.name) + "</span></div>";
       });
       if (all.length > 4) html += '<span class="more">+' + (all.length - 4) + " more</span>";
       cell.innerHTML = html;
@@ -461,14 +539,17 @@
       const ds = TS.fmtDate(cd);
       const cell = document.createElement("div");
       cell.className = "month-cell" + (cd.getMonth() === d.getMonth() ? "" : " out") + (ds === TS.today() ? " is-today" : "");
-      let dots = "";
-      members.forEach(m => {
-        tasksFor(m.uid, ds).slice(0, 2).forEach(t => {
-          const dn = isDone(t, ds), ms = !dn && TS.isMissed(t, ds, completions);
-          dots += "<i class='" + (dn ? "d" : ms ? "m" : "") + "'></i>";
-        });
+      const all = members.flatMap(m => tasksFor(m.uid, ds).map(t => ({ t, m })));
+      let body = "";
+      all.slice(0, 3).forEach(({ t, m }) => {
+        const dn = isDone(t, ds), ms = !dn && TS.isMissed(t, ds, completions);
+        body += '<div class="m-chip' + (dn ? " d" : ms ? " m" : "") + '">' +
+          '<span class="ic">' + (t.icon || "•") + "</span>" +
+          '<span class="nm">' + tsEsc(t.name) + "</span></div>";
       });
-      cell.innerHTML = "<span>" + cd.getDate() + "</span><div class='dots'>" + dots + "</div>";
+      if (all.length > 3) body += '<span class="m-more">+' + (all.length - 3) + " more</span>";
+      cell.innerHTML = "<span class='m-num'>" + cd.getDate() + "</span>" +
+        "<div class='m-body'>" + body + "</div>";
       cell.addEventListener("click", () => {
         currentDate = ds; currentView = "day";
         $$(".viewseg button").forEach(x => x.classList.toggle("on", x.dataset.view === "day"));
@@ -477,6 +558,102 @@
       grid.appendChild(cell);
     }
   }
+
+
+  /* ============================================================
+     TASK DETAIL SHEET - read notes, location, RSVP
+     ============================================================ */
+  const dModal = $("#detail-modal");
+
+  function openDetail(task, owner) {
+    detailTask = task;
+    paintDetail(task, owner);
+    dModal.classList.add("open");
+  }
+  function closeDetail() { dModal.classList.remove("open"); detailTask = null; }
+
+  function paintDetail(task, owner) {
+    owner = owner || person(task.owner);
+    const mine = task.owner === me.uid;
+    const done = isDone(task, currentDate);
+
+    $("#d-icon").textContent = task.icon || "✨";
+    $("#d-title").textContent = task.name;
+    $("#d-when").textContent =
+      (task.time ? TS.prettyTime(task.time) : "anytime today") +
+      (TS.repeatLabel(task) ? " · " + TS.repeatLabel(task) : "") +
+      (done ? " · done ✓" : "");
+    $("#d-owner").innerHTML = tsAvatar(owner, 26) +
+      "<span>" + (mine ? "Yours" : tsEsc(owner.name) + "'s task") + "</span>" +
+      (task.private ? '<span class="anytime-chip">🔒 PRIVATE</span>' : "");
+
+    /* location */
+    const place = $("#d-place");
+    if (task.place) {
+      place.classList.remove("hidden");
+      place.href = mapUrl(task.place);
+      $("#d-place-text").textContent = task.place;
+    } else place.classList.add("hidden");
+
+    /* note */
+    if (task.note) {
+      $("#d-note-wrap").classList.remove("hidden");
+      $("#d-note").textContent = task.note;
+    } else $("#d-note-wrap").classList.add("hidden");
+
+    /* RSVP */
+    if (task.rsvp) {
+      $("#d-rsvp-wrap").classList.remove("hidden");
+      const mine2 = myRsvp(task.id, currentDate);
+      $$("#d-rsvp-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.rsvp === mine2));
+      const all = rsvpsFor(task.id, currentDate);
+      const label = { in: "✅ in", maybe: "🤔 maybe", out: "❌ can't" };
+      $("#d-rsvp-list").innerHTML = all.length
+        ? all.map(r => '<div style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;">' +
+            tsAvatar(person(r.uid), 24) + "<span>" + tsEsc(person(r.uid).name) + "</span>" +
+            '<span style="margin-left:auto;color:var(--muted);">' + label[r.status] + "</span></div>").join("")
+        : '<span style="font-size:13px;color:var(--faint);">Nobody has answered yet.</span>';
+    } else $("#d-rsvp-wrap").classList.add("hidden");
+
+    /* praise received */
+    const pr = praisesFor(task.id, currentDate);
+    if (pr.length) {
+      $("#d-praise-wrap").classList.remove("hidden");
+      $("#d-praise-list").innerHTML = pr.map(p =>
+        '<span class="praise-count">' + p.emoji + " " + tsEsc(person(p.from).name) + "</span>").join("");
+    } else $("#d-praise-wrap").classList.add("hidden");
+
+    /* footer actions */
+    const act = $("#d-action"), edit = $("#d-edit");
+    edit.classList.toggle("hidden", !mine);
+    if (mine) {
+      act.textContent = done ? "Mark not done" : "Mark done";
+      act.onclick = () => { Store.setDone(task.id, currentDate, !done); closeDetail(); };
+    } else if (done) {
+      act.textContent = "Send praise 👏";
+      act.onclick = () => { Store.sendPraise(task.owner, task.id, currentDate, "👏"); tsToast("Sent 👏 to " + owner.name); closeDetail(); };
+    } else if (task.allowNudge !== false) {
+      act.textContent = "Nudge " + owner.name + " 🔔";
+      act.onclick = async () => {
+        const sent = await Store.nudgesSentToday();
+        if (sent >= CONFIG.NUDGE_DAILY_LIMIT) { tsToast("Nudge limit reached for today - keep it kind 💜"); return; }
+        await Store.sendNudge(task.owner, task.id, currentDate);
+        tsChime(); tsToast("Nudge sent to " + owner.name); closeDetail();
+      };
+    } else { act.textContent = "Close"; act.onclick = closeDetail; }
+    edit.onclick = () => { closeDetail(); openModal(task); };
+  }
+
+  $$("#d-rsvp-pills .pill").forEach(p => p.addEventListener("click", async () => {
+    if (!detailTask) return;
+    const cur = myRsvp(detailTask.id, currentDate);
+    const next = cur === p.dataset.rsvp ? null : p.dataset.rsvp;
+    await Store.setRsvp(detailTask.id, currentDate, next);
+    tsToast(next === "in" ? "You're in 💪" : next === "maybe" ? "Marked maybe" : next === "out" ? "Marked can't make it" : "Answer cleared");
+  }));
+  $("#d-close").addEventListener("click", closeDetail);
+  dModal.addEventListener("click", (e) => { if (e.target === dModal) closeDetail(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
 
   /* ============================================================
      TASK MODAL
@@ -494,7 +671,7 @@
       b.addEventListener("click", () => { modalIcon = ic; buildIconRow(); });
       row.appendChild(b);
     });
-    /* your own emoji — type or paste anything */
+    /* your own emoji - type or paste anything */
     const custom = document.createElement("input");
     custom.className = "icon-custom" + (ICONS.includes(modalIcon) ? "" : " on");
     custom.maxLength = 4;
@@ -534,6 +711,12 @@
     $("#t-time").value = (task && task.time) ? task.time : "18:30";
     $("#t-date").value = task ? (task.date || TS.today()) : currentDate;
     $("#t-note").value = task ? (task.note || "") : "";
+    $("#t-place").value = task ? (task.place || "") : "";
+    modalRsvp = task ? !!task.rsvp : false;
+    $("#rsvp-switch").classList.toggle("on", modalRsvp);
+    modalScope = task ? (task.private ? "private" : "sync") : "sync";
+    modalPickIds = new Set();
+    buildScopeUI();
     modalIcon = task ? (task.icon || ICONS[0]) : ICONS[0];
     modalRepeat = task ? task.repeat.type : "none";
     modalDays = new Set(task && task.repeat.days ? task.repeat.days : []);
@@ -543,7 +726,7 @@
     buildIconRow(); syncWhenUI(); syncRepeatUI();
     modal.classList.add("open");
     $("#fab-add").classList.add("open");
-    /* only pull focus on a real keyboard — on touch it yanks the sheet around */
+    /* only pull focus on a real keyboard - on touch it yanks the sheet around */
     if (window.matchMedia("(any-pointer:fine)").matches) {
       setTimeout(() => $("#t-name").focus(), 260);
     }
@@ -552,6 +735,42 @@
     modal.classList.remove("open");
     $("#fab-add").classList.remove("open");
   }
+
+  function buildScopeUI() {
+    $$("#scope-pills .pill").forEach(p => p.classList.toggle("on", p.dataset.scope === modalScope));
+    const list = $("#scope-pick-list");
+    list.classList.toggle("hidden", modalScope !== "pick");
+    const hints = {
+      sync: "Everyone in this sync can see it.",
+      all: "Added to every sync you're in.",
+      pick: "Choose which syncs it shows up in.",
+      private: "Only you can see this, even inside a sync."
+    };
+    $("#scope-hint").textContent = hints[modalScope];
+    if (modalScope === "pick") {
+      list.innerHTML = "";
+      mySyncs.forEach(sy => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "toggle-row";
+        const on = modalPickIds.has(sy.id) || sy.id === sync.id;
+        row.innerHTML = '<span class="switch' + (on ? " on" : "") + '"><i></i></span><span>' +
+          tsEsc(sy.name) + '</span>';
+        row.addEventListener("click", () => {
+          if (sy.id === sync.id) { tsToast("This sync is always included"); return; }
+          modalPickIds.has(sy.id) ? modalPickIds.delete(sy.id) : modalPickIds.add(sy.id);
+          buildScopeUI();
+        });
+        list.appendChild(row);
+      });
+      if (!mySyncs.length) list.innerHTML = '<span style="font-size:13px;color:var(--faint);">You\'re only in this one sync.</span>';
+    }
+  }
+  $$("#scope-pills .pill").forEach(p => p.addEventListener("click", () => { modalScope = p.dataset.scope; buildScopeUI(); }));
+  $("#rsvp-toggle").addEventListener("click", () => {
+    modalRsvp = !modalRsvp;
+    $("#rsvp-switch").classList.toggle("on", modalRsvp);
+  });
 
   $$("#when-pills .pill").forEach(p => p.addEventListener("click", () => { modalWhen = p.dataset.when; syncWhenUI(); }));
   $$("#repeat-pills .pill").forEach(p => p.addEventListener("click", () => { modalRepeat = p.dataset.rep; syncRepeatUI(); }));
@@ -583,18 +802,31 @@
       time: modalWhen === "time" ? ($("#t-time").value || "09:00") : null,
       date: $("#t-date").value || TS.today(),
       repeat: { type: modalRepeat, days: modalRepeat === "custom" ? Array.from(modalDays) : [] },
+      place: $("#t-place").value.trim(),
       note: $("#t-note").value.trim(),
-      allowNudge: modalAllowNudge
+      allowNudge: modalAllowNudge,
+      rsvp: modalRsvp,
+      private: modalScope === "private"
     };
-    if (editingId) await Store.updateTask(editingId, data);
-    else await Store.addTask(data);
+
+    let targets = null;
+    if (modalScope === "all") targets = mySyncs.map(x => x.id);
+    else if (modalScope === "pick") targets = [sync.id].concat(Array.from(modalPickIds));
+
+    if (editingId) {
+      await Store.updateTask(editingId, data, true);
+    } else {
+      await Store.addTask(data, targets);
+    }
     closeModal();
-    tsToast(editingId ? "Task updated" : "Task added");
+    const n = targets ? targets.length : 1;
+    tsToast(editingId ? "Task updated"
+      : n > 1 ? "Added to " + n + " syncs" : data.private ? "Private task added 🔒" : "Task added");
   });
 
   $("#modal-delete").addEventListener("click", async () => {
     if (!editingId) return;
-    await Store.deleteTask(editingId);
+    await Store.deleteTask(editingId, true);
     closeModal();
     tsToast("Task deleted");
   });

@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — auth page (index.html)
+   TooSynced - auth page (index.html)
    Email + Google + Phone (SMS code) sign-in, sign-up with
    optional phone number, ?join=CODE deep links.
    ============================================================ */
@@ -93,7 +93,7 @@
     buildPreviewViews();
 
     if (CONFIG.DEMO_MODE) {
-      $("#demo-hint").innerHTML = "Demo mode is on — any email or phone works, nothing is sent anywhere.";
+      $("#demo-hint").innerHTML = "Demo mode is on - any email or phone works, nothing is sent anywhere.";
     }
     if (joinCode) {
       $("#hero-title").innerHTML = "You've been<br><span>invited</span>.";
@@ -159,7 +159,7 @@
       try {
         await Store.startPhoneSignIn(phone, "btn-send-code");
         $("#code-step").classList.remove("hidden");
-        btn.textContent = "Code sent — resend";
+        btn.textContent = "Code sent - resend";
         btn.disabled = false;
         $("#fp-code").focus();
       } catch (err) {
@@ -188,13 +188,13 @@
   function friendly(err) {
     const code = (err && err.code) || "";
     if (code.includes("user-not-found") || code.includes("invalid-credential")) return "That email and password don't match. Try again, or create an account.";
-    if (code.includes("email-already-in-use")) return "That email already has an account — sign in instead.";
+    if (code.includes("email-already-in-use")) return "That email already has an account - sign in instead.";
     if (code.includes("weak-password")) return "Password needs at least 6 characters.";
     if (code.includes("invalid-email")) return "That doesn't look like an email address.";
-    if (code.includes("invalid-phone-number")) return "That phone number didn't go through — try the format +1 951 555 0134.";
+    if (code.includes("invalid-phone-number")) return "That phone number didn't go through - try the format +1 951 555 0134.";
     if (code.includes("invalid-verification-code")) return "That code didn't match. Check the text and try again.";
-    if (code.includes("code-expired")) return "That code expired — tap resend for a new one.";
-    if (code.includes("too-many-requests")) return "Too many tries — give it a few minutes.";
+    if (code.includes("code-expired")) return "That code expired - tap resend for a new one.";
+    if (code.includes("too-many-requests")) return "Too many tries - give it a few minutes.";
     if (code.includes("quota-exceeded")) return "SMS limit hit for today (Firebase free tier is 10/day). Use email for now.";
     return err.message || "Something went wrong. Try again.";
   }

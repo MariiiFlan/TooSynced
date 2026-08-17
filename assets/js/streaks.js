@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — streaks & stats page (all computed client-side)
+   TooSynced - streaks & stats page (all computed client-side)
    ============================================================ */
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -91,8 +91,8 @@
   function renderPerson(uid, prefix) {
     $("#" + prefix + "-streak").textContent = personStreak(uid);
     const wk = rangeStats(uid, 7);
-    $("#" + prefix + "-week").textContent = "THIS WEEK " + (wk.pct === null ? "—" : wk.pct + "%");
-    $("#" + prefix + "-kept").textContent = wk.pct === null ? "—" : wk.pct + "%";
+    $("#" + prefix + "-week").textContent = "THIS WEEK " + (wk.pct === null ? "-" : wk.pct + "%");
+    $("#" + prefix + "-kept").textContent = wk.pct === null ? "-" : wk.pct + "%";
     $("#" + prefix + "-7d").textContent = wk.done;
 
     /* heatmap: 18 weeks, columns = weeks, rows = weekdays.

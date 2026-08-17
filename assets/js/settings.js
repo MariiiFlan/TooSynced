@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — settings
+   TooSynced - settings
    ============================================================ */
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -21,6 +21,15 @@
 
     paintSync(s);
     Store.watchSync((fresh) => { if (fresh) { sync = fresh; paintSync(fresh); } });
+
+    /* location check-in status */
+    Store.watchLocations((locs) => {
+      const mine = (locs || {})[user.uid];
+      $("#loc-status").textContent = mine
+        ? "Sharing" + (mine.label ? " · " + mine.label : "") + " (tap again to refresh)"
+        : "Not sharing";
+      $("#btn-clear-loc").classList.toggle("hidden", !mine);
+    });
 
     if (CONFIG.DEMO_MODE) $("#btn-reset-demo").classList.remove("hidden");
   });
@@ -66,10 +75,39 @@
     catch { tsToast("Couldn't copy on this device"); }
   });
 
+  $("#btn-share-loc").addEventListener("click", () => {
+    if (!navigator.geolocation) { tsToast("This device can't share location"); return; }
+    const btn = $("#btn-share-loc");
+    btn.disabled = true; btn.textContent = "Finding you...";
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      await Store.shareLocation({
+        lat: Number(pos.coords.latitude.toFixed(5)),
+        lng: Number(pos.coords.longitude.toFixed(5))
+      });
+      btn.disabled = false; btn.textContent = "Share where I am";
+      tsToast("Location shared with this sync 📍");
+    }, (err) => {
+      btn.disabled = false; btn.textContent = "Share where I am";
+      tsToast(err.code === 1
+        ? "Location permission denied - allow it in your browser settings"
+        : "Couldn't get your location");
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  });
+
+  $("#btn-clear-loc").addEventListener("click", async () => {
+    await Store.clearLocation();
+    tsToast("Stopped sharing your location");
+  });
+
   $("#btn-notif").addEventListener("click", async () => {
-    if (!("Notification" in window)) { tsToast("This browser doesn't support notifications"); return; }
-    const p = await Notification.requestPermission();
-    tsToast(p === "granted" ? "Notifications on 💜" : "Notifications blocked — check browser settings");
+    const p = await tsAskNotify();
+    if (p === "unsupported") { tsToast("This browser doesn't support notifications"); return; }
+    if (p === "granted") {
+      tsToast("Notifications on 💜");
+      tsNotify("TooSynced", "You're all set - nudges will show up here.", "test");
+    } else if (p === "denied") {
+      tsToast("Blocked - turn them on in your browser's site settings");
+    }
   });
   $("#btn-test-chime").addEventListener("click", () => tsChime());
 

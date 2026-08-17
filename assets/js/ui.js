@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — shared UI helpers
+   TooSynced - shared UI helpers
    ============================================================ */
 
 /* ---------- dates ---------- */
@@ -60,7 +60,7 @@ const TS = {
     const todayStr = TS.today();
     if (dateStr > todayStr) return false;
     if (dateStr < todayStr) return true;
-    /* no set time = "anytime today" — never overdue during the day */
+    /* no set time = "anytime today" - never overdue during the day */
     if (!task.time) return false;
     const [h, m] = task.time.split(":").map(Number);
     return (now.getHours() * 60 + now.getMinutes()) > (h * 60 + m);
@@ -90,7 +90,7 @@ window.tsToast = (msg) => {
 window.tsChime = () => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [659.25, 830.61, 987.77]; // E5, G#5, B5 — a warm little arpeggio
+    const notes = [659.25, 830.61, 987.77]; // E5, G#5, B5 - a warm little arpeggio
     notes.forEach((f, i) => {
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = "sine"; o.frequency.value = f;
@@ -104,13 +104,35 @@ window.tsChime = () => {
   } catch (e) { /* audio not available */ }
 };
 
-/* ---------- system notification (when app is open) ---------- */
-window.tsNotify = async (title, body) => {
+/* ---------- system notification ----------
+   Uses the service worker registration when there is one: that is the only
+   path that works for an installed PWA on Android, and it keeps the icon and
+   tap-to-open behaviour consistent. Falls back to a plain Notification. */
+window.tsNotify = async (title, body, tag) => {
   if (!("Notification" in window)) return;
-  if (Notification.permission === "default") await Notification.requestPermission();
-  if (Notification.permission === "granted") {
-    new Notification(title, { body, icon: "icons/icon-192.png" });
-  }
+  if (Notification.permission !== "granted") return;
+  const opts = {
+    body,
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    tag: tag || "toosynced",
+    renotify: true,
+    data: { url: location.origin + location.pathname.replace(/[^/]*$/, "app.html") }
+  };
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) { await reg.showNotification(title, opts); return; }
+    }
+  } catch (e) { /* fall through */ }
+  try { new Notification(title, opts); } catch (e) {}
+};
+
+/* ask once, at a moment the person expects it */
+window.tsAskNotify = async () => {
+  if (!("Notification" in window)) return "unsupported";
+  if (Notification.permission !== "default") return Notification.permission;
+  try { return await Notification.requestPermission(); } catch (e) { return "denied"; }
 };
 
 /* ---------- auth guard for app pages ---------- */
@@ -137,7 +159,7 @@ if ("serviceWorker" in navigator) {
 window.tsReducedMotion = () =>
   window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/* aurora background (05) — call once per page */
+/* aurora background (05) - call once per page */
 window.tsAurora = () => {
   if (document.querySelector(".aurora")) return;
   const a = document.createElement("div");
@@ -146,7 +168,7 @@ window.tsAurora = () => {
   document.body.prepend(a);
 };
 
-/* launch splash (04) — once per session, app shell pages */
+/* launch splash (04) - once per session, app shell pages */
 window.tsSplash = () => {
   if (tsReducedMotion()) return;
   try { if (sessionStorage.getItem("ts_splash")) return; sessionStorage.setItem("ts_splash", "1"); }
@@ -164,7 +186,7 @@ window.tsSplash = () => {
   setTimeout(() => s.remove(), 2100);
 };
 
-/* nudge dot flight (03) — from a button to an avatar */
+/* nudge dot flight (03) - from a button to an avatar */
 window.tsFlyDot = (fromEl, toEl) => {
   if (tsReducedMotion() || !fromEl || !toEl) return;
   const f = fromEl.getBoundingClientRect(), t = toEl.getBoundingClientRect();
@@ -238,12 +260,12 @@ window.tsColorMembers = (members, myUid) => {
 window.tsEsc = (s) => { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; };
 
 /* Compress a picked image to a small square dataURL.
-   Tries createImageBitmap first — it decodes more formats than <img>,
+   Tries createImageBitmap first - it decodes more formats than <img>,
    respects EXIF orientation, and doesn't need a data URL round-trip. */
 window.tsReadPhoto = async (file, px) => {
   const size = px || 160;
   if (!file) throw new Error("No file picked.");
-  if (file.size > 25 * 1024 * 1024) throw new Error("That image is huge — pick one under 25MB.");
+  if (file.size > 25 * 1024 * 1024) throw new Error("That image is huge - pick one under 25MB.");
 
   const name = (file.name || "").toLowerCase();
   const looksHeic = /\.(heic|heif)$/.test(name) || /heic|heif/.test(file.type || "");
@@ -326,7 +348,7 @@ function tsRequireSync(cb) {
 }
 
 /* ============================================================
-   Sync switcher — dropdown in the topbar of every app page
+   Sync switcher - dropdown in the topbar of every app page
    ============================================================ */
 window.tsSyncSwitcher = (mountSel, activeSync, onSwitch) => {
   const mount = document.querySelector(mountSel);

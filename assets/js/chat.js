@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — sync chat
+   TooSynced - sync chat
    ============================================================ */
 (function () {
   const $ = (s) => document.querySelector(s);

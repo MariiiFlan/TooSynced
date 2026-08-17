@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — syncs hub
+   TooSynced - syncs hub
    List your syncs, switch between them, create a Two Sync or a
    Group Sync, or join one with a code.
    ============================================================ */

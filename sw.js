@@ -1,6 +1,6 @@
 /* TooSynced service worker — makes the app installable + snappy repeat loads.
    Network-first so deploys show up immediately; cache is only a fallback. */
-const CACHE = "toosynced-v4";
+const CACHE = "toosynced-v5";
 const SHELL = [
   "index.html", "profile.html", "syncs.html", "invite.html",
   "app.html", "chat.html", "streaks.html", "settings.html",
@@ -30,4 +30,16 @@ self.addEventListener("fetch", (e) => {
       return res;
     }).catch(() => caches.match(e.request))
   );
+});
+
+/* tapping a notification focuses an open tab, or opens the app */
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "app.html";
+  e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    for (const c of list) {
+      if ("focus" in c) { c.navigate(url).catch(() => {}); return c.focus(); }
+    }
+    if (clients.openWindow) return clients.openWindow(url);
+  }));
 });

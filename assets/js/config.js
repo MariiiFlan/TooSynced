@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — config
+   TooSynced - config
    ------------------------------------------------------------
    DEMO_MODE: true  = runs fully in the browser (localStorage),
                       no Firebase needed. Great for testing UI.

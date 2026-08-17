@@ -1,5 +1,5 @@
 /* ============================================================
-   TooSynced — profile setup (name, photo, birthday)
+   TooSynced - profile setup (name, photo, birthday)
    Shown right after sign-up, and reachable from Settings.
    ============================================================ */
 (function () {
