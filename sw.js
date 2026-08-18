@@ -1,6 +1,6 @@
 /* TooSynced service worker — makes the app installable + snappy repeat loads.
    Network-first so deploys show up immediately; cache is only a fallback. */
-const CACHE = "toosynced-v11";
+const CACHE = "toosynced-v12";
 const SHELL = [
   "index.html", "profile.html", "syncs.html", "invite.html",
   "app.html", "chat.html", "streaks.html", "settings.html",

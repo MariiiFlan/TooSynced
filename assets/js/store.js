@@ -122,6 +122,7 @@ const DemoStore = (() => {
     },
     async signOut() { const db = load(); db.user = null; save(db); },
     async resetDemo() { localStorage.removeItem(KEY); },
+    async deleteAccount() { localStorage.removeItem(KEY); },
 
     /* ---------- profile ---------- */
     async getProfile() { return load().user; },
@@ -535,6 +536,54 @@ const FirebaseStore = (() => {
     },
     async signOut() { dropWatchers(); await auth.signOut(); },
     async resetDemo() {},
+
+    /* Google Play requires an in-app way to delete an account.
+       Removes everything this person owns, then the auth user itself. */
+    async deleteAccount() {
+      const me = await this.getProfile();
+      const ids = (me && me.syncIds) || [];
+
+      for (const sid of ids) {
+        const ref = db.collection("syncs").doc(sid);
+        const snap = await ref.get().catch(() => null);
+        if (!snap || !snap.exists) continue;
+        const d = snap.data();
+
+        /* my tasks in this sync, and their completions */
+        const tq = await ref.collection("tasks").where("owner", "==", uid).get().catch(() => null);
+        if (tq) {
+          for (const t of tq.docs) {
+            const cq = await ref.collection("completions").where("taskId", "==", t.id).get().catch(() => null);
+            if (cq) await Promise.all(cq.docs.map(c => c.ref.delete().catch(() => {})));
+            await t.ref.delete().catch(() => {});
+          }
+        }
+        /* praise, nudges and rsvps I sent or received */
+        for (const col of ["praises", "nudges", "rsvps"]) {
+          for (const field of ["from", "to", "uid"]) {
+            const q = await ref.collection(col).where(field, "==", uid).get().catch(() => null);
+            if (q) await Promise.all(q.docs.map(x => x.ref.delete().catch(() => {})));
+          }
+        }
+        /* my location pin */
+        await ref.collection("presence").doc(uid).delete().catch(() => {});
+
+        /* last one out deletes the sync, otherwise just leave it */
+        if ((d.memberUids || []).length <= 1) {
+          await ref.delete().catch(() => {});
+        } else {
+          await ref.update({
+            memberUids: firebase.firestore.FieldValue.arrayRemove(uid),
+            ["members." + uid]: firebase.firestore.FieldValue.delete()
+          }).catch(() => {});
+        }
+      }
+
+      await db.collection("users").doc(uid).delete().catch(() => {});
+      dropWatchers();
+      const u = auth.currentUser;
+      if (u) await u.delete();   // throws requires-recent-login if the session is old
+    },
 
     /* ---------- profile ---------- */
     async getProfile() {

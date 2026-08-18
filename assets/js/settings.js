@@ -154,6 +154,25 @@
     await Store.signOut();
     location.href = "index.html";
   });
+  $("#btn-delete-account").addEventListener("click", async () => {
+    const name = (me && me.name) || "your account";
+    if (!confirm("Delete " + name + "?\n\nThis removes your profile, tasks, streaks and location pins. It cannot be undone.")) return;
+    const typed = prompt('Type DELETE to confirm.');
+    if (!typed || typed.trim().toUpperCase() !== "DELETE") { tsToast("Cancelled"); return; }
+    const btn = $("#btn-delete-account");
+    btn.disabled = true; btn.textContent = "Deleting...";
+    try {
+      await Store.deleteAccount();
+      tsToast("Your account has been deleted");
+      setTimeout(() => { location.href = "index.html"; }, 1200);
+    } catch (err) {
+      btn.disabled = false; btn.textContent = "Delete my account";
+      tsToast(err && /recent/i.test(err.message || "")
+        ? "For security, sign out and back in, then delete."
+        : (err.message || "Couldn't delete the account"));
+    }
+  });
+
   $("#btn-reset-demo").addEventListener("click", async () => {
     await Store.resetDemo();
     location.href = "index.html";
