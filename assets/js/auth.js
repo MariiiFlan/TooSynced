@@ -196,6 +196,13 @@
     if (code.includes("code-expired")) return "That code expired - tap resend for a new one.";
     if (code.includes("too-many-requests")) return "Too many tries - give it a few minutes.";
     if (code.includes("quota-exceeded")) return "SMS limit hit for today (Firebase free tier is 10/day). Use email for now.";
+    if (code.includes("operation-not-allowed") || /region/i.test(err.message || ""))
+      return "Text sign-in isn't switched on for this region yet. Use email or Google for now.";
+    if (code.includes("unauthorized-domain"))
+      return "This address isn't authorised in Firebase yet. Add it under Authentication > Settings > Authorized domains.";
+    if (code.includes("popup-blocked") || code.includes("popup-closed"))
+      return "The Google window was closed before finishing. Try again.";
+    if (code.includes("network-request-failed")) return "No connection. Check your signal and try again.";
     return err.message || "Something went wrong. Try again.";
   }
 

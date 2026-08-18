@@ -471,6 +471,20 @@ const FirebaseStore = (() => {
       return { uid: cred.user.uid };
     },
     async signInGoogle() {
+      /* Native: a popup can't talk back to a Capacitor WebView (you get a
+         white screen), so let the native Google sheet run and exchange the
+         token for a Firebase credential. */
+      const FA = window.Capacitor && window.Capacitor.Plugins
+        && window.Capacitor.Plugins.FirebaseAuthentication;
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && FA) {
+        const res = await FA.signInWithGoogle();
+        const idToken = res && res.credential && res.credential.idToken;
+        const accessToken = res && res.credential && res.credential.accessToken;
+        if (!idToken && !accessToken) throw new Error("Google sign-in was cancelled.");
+        const credential = firebase.auth.GoogleAuthProvider.credential(idToken || null, accessToken || null);
+        const out = await auth.signInWithCredential(credential);
+        return { uid: out.user.uid };
+      }
       const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
       return { uid: cred.user.uid };
     },
@@ -478,11 +492,36 @@ const FirebaseStore = (() => {
     async startPhoneSignIn(phone, buttonId) {
       const e164 = tsE164(phone);
       if (!e164) throw new Error("Enter a phone number like (951) 555-0134 or +1 951 555 0134.");
+      const FA = window.Capacitor && window.Capacitor.Plugins
+        && window.Capacitor.Plugins.FirebaseAuthentication;
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && FA) {
+        /* native handles its own verification - no reCAPTCHA iframe */
+        this._native = true;
+        this._verificationId = null;
+        await FA.addListener("phoneCodeSent", (e) => { this._verificationId = e.verificationId; });
+        await FA.signInWithPhoneNumber({ phoneNumber: e164 });
+        return true;
+      }
+      this._native = false;
       if (!this._recaptcha) this._recaptcha = new firebase.auth.RecaptchaVerifier(buttonId, { size: "invisible" });
       this._confirmation = await auth.signInWithPhoneNumber(e164, this._recaptcha);
       return true;
     },
     async confirmPhoneCode(code, name) {
+      if (this._native) {
+        if (!this._verificationId) throw new Error("Still waiting on the text. Give it a second and try again.");
+        const credential = firebase.auth.PhoneAuthProvider.credential(this._verificationId, code.trim());
+        const out = await auth.signInWithCredential(credential);
+        const ref2 = db.collection("users").doc(out.user.uid);
+        if (!(await ref2.get()).exists) {
+          await ref2.set({
+            name: name || ("Me " + (out.user.phoneNumber || "").slice(-4)).trim(),
+            birthday: null, photo: null,
+            phone: out.user.phoneNumber || null, syncIds: [], activeSyncId: null
+          });
+        }
+        return { uid: out.user.uid };
+      }
       if (!this._confirmation) throw new Error("Ask for a code first.");
       const cred = await this._confirmation.confirm(code.trim());
       const ref = db.collection("users").doc(cred.user.uid);
