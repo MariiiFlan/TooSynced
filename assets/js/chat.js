@@ -6,6 +6,7 @@
   let me = null, sync = null, lastCount = 0;
 
   tsAurora();
+  tsBottomNav("chat.html");
 
   tsRequireSync((user, s) => {
     me = user; sync = s;

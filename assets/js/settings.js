@@ -6,6 +6,7 @@
   let inviteUrl = "", sync = null, me = null;
 
   tsAurora();
+  tsBottomNav("settings.html");
 
   tsRequireUser(async (user, s) => {
     me = user; sync = s;

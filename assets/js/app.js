@@ -23,6 +23,7 @@
 
   tsSplash();
   tsAurora();
+  tsBottomNav("app.html");
 
   tsRequireSync((user, s) => {
     me = user; sync = s;
@@ -280,8 +281,9 @@
     members.forEach(m => {
       const b = document.createElement("button");
       b.textContent = m.uid === me.uid ? "You" : m.name.split(" ")[0];
+      b.dataset.uid = m.uid;
       b.className = m.uid === mobileTab ? "on" : "";
-      b.addEventListener("click", () => { mobileTab = m.uid; renderDay(); });
+      b.addEventListener("click", () => { mobileTab = m.uid; applyMobileTab(); });
       tabs.appendChild(b);
     });
 
@@ -291,6 +293,7 @@
     cols.innerHTML = "";
     members.forEach(m => cols.appendChild(personColumn(m, changed)));
 
+    applyMobileTab();
     if (window.tsRenderChores) tsRenderChores({
       mount: "#chores-mount", sync, members, me,
       onSave: () => setTimeout(() => location.reload(), 500)
@@ -301,6 +304,20 @@
     paintPresence([]);
     paintLocations();
   }
+
+  /* on a phone only the selected person's column is shown - the tabs at the
+     top switch between them instead of scrolling past everyone */
+  function isPhone() { return window.matchMedia("(max-width:820px)").matches; }
+  function applyMobileTab() {
+    const phone = isPhone();
+    document.querySelectorAll("#day-cols .person-col").forEach(col => {
+      col.classList.toggle("mtab-hidden", phone && col.dataset.uid !== mobileTab);
+    });
+    document.querySelectorAll("#mobile-tabs button").forEach(b => {
+      b.classList.toggle("on", b.dataset.uid === mobileTab);
+    });
+  }
+  window.addEventListener("resize", applyMobileTab);
 
   function personColumn(m, cascade) {
     const mine = m.uid === me.uid;

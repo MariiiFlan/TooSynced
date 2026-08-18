@@ -419,3 +419,29 @@ window.tsSyncSwitcher = (mountSel, activeSync, onSwitch) => {
     menu.appendChild(inv);
   });
 };
+
+
+/* ============================================================
+   Bottom tab bar - the thing that makes it feel like an app
+   instead of a web page. Shown on phones and in the wrapper.
+   ============================================================ */
+const TS_TABS = [
+  ["app.html",      "Schedule", '<path d="M8 2v3M16 2v3M3.5 9h17M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 20.5H5A1.5 1.5 0 0 1 3.5 19V6A1.5 1.5 0 0 1 5 4.5Z"/>'],
+  ["chat.html",     "Chat",     '<path d="M20.5 12a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1-4.6A8.5 8.5 0 1 1 20.5 12Z"/>'],
+  ["streaks.html",  "Streaks",  '<path d="M12 21c3.6 0 6.5-2.8 6.5-6.3 0-4.4-4.3-6.2-3.9-11.2-2.4 1.2-4 3.4-4 6 0 1.2-1 1.8-1.7 1.1-.6-.6-.9-1.5-.9-2.4C5.9 10 5.5 12 5.5 14.7 5.5 18.2 8.4 21 12 21Z"/>'],
+  ["settings.html", "Settings", '<path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/>']
+];
+
+window.tsBottomNav = (active) => {
+  if (document.querySelector(".tabbar")) return;
+  const nav = document.createElement("nav");
+  nav.className = "tabbar";
+  nav.innerHTML = TS_TABS.map(([href, label, path]) =>
+    '<a href="' + href + '"' + (href === active ? ' class="on"' : "") + '>' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+      'stroke-linecap="round" stroke-linejoin="round">' + path + "</svg>" +
+      "<span>" + label + "</span>" +
+    "</a>").join("");
+  document.body.appendChild(nav);
+  document.documentElement.classList.add("has-tabbar");
+};

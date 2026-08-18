@@ -5,6 +5,7 @@
   const $ = (s) => document.querySelector(s);
   let me = null, sync = null, members = [], partner = null, tasks = [], completions = new Map();
   tsAurora();
+  tsBottomNav("streaks.html");
 
   tsRequireSync((user, s) => {
     me = user; sync = s;

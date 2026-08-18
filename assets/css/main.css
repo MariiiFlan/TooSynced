@@ -1027,3 +1027,162 @@ html.is-native .bubble,html.is-native #d-note{
 }
 /* overscroll glow looks broken in a web view */
 html.is-native body{overscroll-behavior-y:none;}
+
+/* ============================================================
+   APP SHELL
+   On phones (and inside the wrapper) the page stops behaving
+   like a document: the header is pinned, only the content
+   scrolls, and navigation lives in a bottom tab bar.
+   ============================================================ */
+@media (max-width:820px){
+  html, body{
+    height:100%;
+    overflow:hidden;               /* no document-level scroll */
+    overscroll-behavior:none;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    padding-top:0;
+    padding-bottom:0;
+  }
+  .topbar{
+    position:relative;             /* it's already pinned by the flex shell */
+    top:0;
+    flex:none;
+    height:auto;
+    min-height:56px;
+    padding-top:calc(6px + env(safe-area-inset-top,0px));
+    padding-bottom:6px;
+    z-index:60;
+  }
+  /* the one scrolling region */
+  .page{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding:0 16px 20px;
+    scroll-padding-bottom:120px;
+  }
+  html.has-tabbar .page{
+    padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  }
+
+  /* top nav links are replaced by the tab bar */
+  .topnav{display:none;}
+
+  /* the FAB sits above the tab bar, not under it */
+  html.has-tabbar .fab{
+    bottom:calc(84px + env(safe-area-inset-bottom,0px));
+    right:16px;
+    width:56px;height:56px;border-radius:19px;font-size:27px;
+  }
+  html.has-tabbar .toast{
+    bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  }
+}
+
+/* ---------- the tab bar itself ---------- */
+.tabbar{display:none;}
+@media (max-width:820px){
+  .tabbar{
+    display:flex;
+    flex:none;
+    position:fixed;
+    left:0;right:0;bottom:0;
+    background:rgba(255,255,255,.92);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--border);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));
+    z-index:70;
+  }
+  .tabbar a{
+    flex:1;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    padding:7px 0 5px;
+    color:var(--faint);
+    font-size:11px;font-weight:600;
+    text-decoration:none;
+    border-radius:12px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .tabbar a svg{width:23px;height:23px;}
+  .tabbar a.on{color:var(--primary);}
+  .tabbar a.on svg{stroke-width:2;}
+  .tabbar a:active{background:var(--chip-bg);}
+}
+
+/* chat fills the shell instead of computing its own height */
+@media (max-width:820px){
+  .chat-wrap{height:auto;flex:1;min-height:0;}
+  .page:has(.chat-wrap){display:flex;flex-direction:column;padding-bottom:0;}
+  html.has-tabbar .page:has(.chat-wrap){padding-bottom:0;}
+  .chat-scroll{padding:12px 2px;}
+  .chat-bar{
+    position:sticky;bottom:0;
+    padding:10px 2px calc(10px + env(safe-area-inset-bottom,0px));
+    background:var(--bg);
+  }
+  html.has-tabbar .chat-bar{
+    margin-bottom:calc(64px + env(safe-area-inset-bottom,0px));
+    padding-bottom:10px;
+  }
+}
+
+/* native: the body padding is handled by the shell above, so drop the
+   duplicate insets that were pushing content down twice */
+@media (max-width:820px){
+  html.is-native body{padding-top:0;padding-bottom:0;}
+  html.is-native .topbar{top:0;}
+  html.is-native.has-tabbar .fab{bottom:calc(84px + env(safe-area-inset-bottom,0px));}
+}
+
+/* tighter header on phones so more of the day is visible */
+@media (max-width:820px){
+  .sched-head{padding-bottom:12px;gap:10px;}
+  .sched-head .left{width:100%;justify-content:space-between;}
+  .sched-head h1{font-size:20px;}
+  .viewseg{width:100%;}
+  .streak-pill{padding:6px 12px 6px 6px;font-size:12px;}
+  .sync-btn{padding:5px 12px 5px 5px;}
+  .sync-btn .txt b{font-size:13px;max-width:96px;}
+  .sync-btn .txt span{font-size:10px;}
+}
+
+/* keep the date + Day/Week/Month controls pinned while the day scrolls */
+@media (max-width:820px){
+  .sched-sticky{
+    position:sticky;top:0;z-index:40;
+    background:var(--bg);
+    margin:0 -16px 12px;
+    padding:12px 16px 0;
+    border-bottom:1px solid var(--border);
+    box-shadow:0 6px 14px -10px rgba(60,40,110,.35);
+  }
+  .sched-sticky .sched-head{padding-bottom:10px;}
+  .sched-sticky .mobile-tabs{margin:0 0 10px;gap:6px;}
+  .mobile-tabs button{font-size:13px;padding:9px 0;}
+  /* the streak pill shrinks to the number so the topbar stays one line */
+  .streak-pill .label-txt{font-size:12px;white-space:nowrap;}
+  .topbar .right{gap:8px;min-width:0;}
+  .topbar{gap:8px;}
+  .logo--md{font-size:17px;}
+  .logo--md svg{width:19px;height:12px;}
+}
+@media (max-width:420px){
+  /* on the narrowest phones the wordmark gives way to the sync switcher */
+  .topbar .logo{display:none;}
+  .sync-btn .txt b{max-width:120px;}
+}
+
+/* phone: show one person at a time, tabs switch between them */
+@media (max-width:820px){
+  .person-col.mtab-hidden{display:none;}
+  .cols.group-cols{display:block;}
+  .mobile-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .mobile-tabs::-webkit-scrollbar{display:none;}
+  .mobile-tabs button{flex:0 0 auto;min-width:84px;padding:9px 16px;}
+}
