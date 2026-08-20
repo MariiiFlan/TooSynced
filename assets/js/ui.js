@@ -357,6 +357,7 @@ function tsRequireSync(cb) {
       if (window.TSNative) TSNative.init(user);
       const sync = await Store.getSync();
       if (!sync) { location.href = "syncs.html"; return; }
+      if (window.tsStartAlerts) tsStartAlerts(user, sync);
       cb(user, sync);
     });
   });
@@ -381,12 +382,38 @@ window.tsSyncSwitcher = (mountSel, activeSync, onSwitch) => {
   const btn = mount.querySelector("#sync-btn");
   const menu = mount.querySelector("#sync-menu");
 
+  /* The topbar creates its own stacking context, so a sheet rendered inside
+     it can never sit above a full-screen backdrop. On phones the menu moves
+     to the body where it can. */
+  const phone = () => window.matchMedia("(max-width:820px)").matches;
+  const reparent = () => {
+    if (phone()) {
+      if (menu.parentElement !== document.body) document.body.appendChild(menu);
+    } else if (menu.parentElement !== mount) {
+      mount.appendChild(menu);
+    }
+  };
+  reparent();
+  window.addEventListener("resize", reparent);
+
+  /* on a phone the menu is a bottom sheet, so it needs a backdrop */
+  let backdrop = document.querySelector(".sync-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.className = "sync-backdrop";
+    document.body.appendChild(backdrop);
+  }
+  const close = () => { menu.classList.remove("open"); backdrop.classList.remove("open"); };
+  const open = () => { menu.classList.add("open"); backdrop.classList.add("open"); };
+
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    menu.classList.toggle("open");
+    menu.classList.contains("open") ? close() : open();
   });
-  document.addEventListener("click", () => menu.classList.remove("open"));
+  backdrop.addEventListener("click", close);
+  document.addEventListener("click", close);
   menu.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 
   Store.watchSyncs((list) => {
     menu.innerHTML = "";
@@ -398,7 +425,8 @@ window.tsSyncSwitcher = (mountSel, activeSync, onSwitch) => {
         '<span class="txt"><b>' + tsEsc(s.name) + '</b><span>' + tsSyncLabel(s) + '</span></span>' +
         (s.id === activeSync.id ? '<span style="color:var(--primary);font-weight:800;">✓</span>' : '');
       b.addEventListener("click", async () => {
-        if (s.id === activeSync.id) { menu.classList.remove("open"); return; }
+        if (s.id === activeSync.id) { close(); return; }
+        close();
         await Store.setActiveSync(s.id);
         if (onSwitch) onSwitch(s); else location.reload();
       });

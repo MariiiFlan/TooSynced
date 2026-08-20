@@ -1,11 +1,11 @@
 /* TooSynced service worker — makes the app installable + snappy repeat loads.
    Network-first so deploys show up immediately; cache is only a fallback. */
-const CACHE = "toosynced-v14";
+const CACHE = "toosynced-v15";
 const SHELL = [
   "index.html", "profile.html", "syncs.html", "invite.html",
   "app.html", "chat.html", "streaks.html", "settings.html",
   "assets/css/main.css",
-  "assets/js/config.js", "assets/js/store.js", "assets/js/ui.js", "assets/js/native.js", "assets/js/plan.js", "assets/js/pro.js",
+  "assets/js/config.js", "assets/js/store.js", "assets/js/ui.js", "assets/js/native.js", "assets/js/alerts.js", "assets/js/plan.js", "assets/js/pro.js",
   "assets/js/auth.js", "assets/js/profile.js", "assets/js/syncs.js",
   "assets/js/invite.js", "assets/js/app.js", "assets/js/chat.js",
   "assets/js/streaks.js", "assets/js/settings.js",

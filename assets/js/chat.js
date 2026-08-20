@@ -19,6 +19,7 @@
   });
 
   function render(msgs) {
+    if (window.tsMarkChatRead) tsMarkChatRead();
     const el = $("#chat-scroll");
     if (!msgs || !msgs.length) {
       el.innerHTML = '<div class="chat-empty">No messages yet.<br>Say something to get everyone going.</div>';
@@ -67,6 +68,9 @@
     $("#chat-scroll").scrollTop = $("#chat-scroll").scrollHeight;
   }
 
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && window.tsMarkChatRead) tsMarkChatRead();
+  });
   $("#btn-send").addEventListener("click", send);
   $("#msg-input").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
 })();
