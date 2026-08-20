@@ -71,25 +71,40 @@
     }
 
     const code = sync.inviteCode;
-    inviteUrl = CONFIG.APP_URL + "/index.html?join=" + code;
-    $("#invite-link").innerHTML = CONFIG.APP_URL.replace(/^https?:\/\//, "") + "/join/<b>" + code + "</b>";
+    inviteUrl = tsInviteUrl(code);
+    $("#code-text").textContent = code.toUpperCase();
+    $("#invite-link").textContent = inviteUrl;
 
     if (wired) return;
     wired = true;
+
+    /* tapping the big code copies just the code */
+    $("#code-big").addEventListener("click", async () => {
+      const c = (sync.inviteCode || "").toUpperCase();
+      try {
+        await navigator.clipboard.writeText(c);
+        tsToast("Code " + c + " copied");
+      } catch {
+        /* clipboard blocked: select it so they can copy by hand */
+        const r = document.createRange();
+        r.selectNodeContents($("#code-text"));
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(r);
+        tsToast("Long-press the code to copy");
+      }
+    });
 
     $("#btn-copy").addEventListener("click", async () => {
       try { await navigator.clipboard.writeText(inviteUrl); tsToast("Invite link copied"); }
       catch { tsToast("Couldn't copy - long-press the link instead"); }
     });
+
+    /* the share sheet sends code AND link, so it works either way */
     $("#btn-share-text").addEventListener("click", () => {
-      const msg = "Join my sync on TooSynced - we keep each other on schedule.";
-      if (window.TSNative && TSNative.isNative) { TSNative.share(msg, inviteUrl); return; }
-      if (navigator.share) navigator.share({ text: msg + " " + inviteUrl }).catch(() => {});
-      else location.href = "sms:?&body=" + encodeURIComponent(msg + " " + inviteUrl);
-    });
-    $("#btn-share-email").addEventListener("click", () => {
-      location.href = "mailto:?subject=" + encodeURIComponent("Join my sync on TooSynced")
-        + "&body=" + encodeURIComponent("We keep each other on schedule. Join here: " + inviteUrl);
+      const msg = tsInviteMessage(sync.inviteCode, sync.name);
+      if (window.TSNative && TSNative.isNative) { TSNative.share(msg); return; }
+      if (navigator.share) { navigator.share({ text: msg }).catch(() => {}); return; }
+      location.href = "sms:?&body=" + encodeURIComponent(msg);
     });
   }
 })();

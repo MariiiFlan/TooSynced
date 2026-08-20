@@ -52,8 +52,8 @@
 
   function paintSync(s) {
     $("#s-sync-name").value = s.name;
-    inviteUrl = CONFIG.APP_URL + "/index.html?join=" + s.inviteCode;
-    $("#invite-link").textContent = CONFIG.APP_URL.replace(/^https?:\/\//, "") + "/join/" + s.inviteCode;
+    inviteUrl = tsInviteUrl(s.inviteCode);
+    $("#invite-link").textContent = (s.inviteCode || "").toUpperCase();
     const members = (s.memberUids || []).map(u => ({ uid: u, ...(s.members[u] || { name: "?" }) }));
     members.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : 0));
     tsColorMembers(members, me.uid);
@@ -88,9 +88,11 @@
   });
 
   $("#btn-copy").addEventListener("click", async () => {
-    if (!sync || !inviteUrl) return;
-    try { await navigator.clipboard.writeText(inviteUrl); tsToast("Invite link copied"); }
-    catch { tsToast("Couldn't copy on this device"); }
+    if (!sync) return;
+    try {
+      await navigator.clipboard.writeText(tsInviteMessage(sync.inviteCode, sync.name));
+      tsToast("Invite copied");
+    } catch { tsToast("Couldn't copy on this device"); }
   });
 
   $("#btn-share-loc").addEventListener("click", async () => {

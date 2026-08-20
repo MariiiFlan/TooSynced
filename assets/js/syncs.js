@@ -153,10 +153,18 @@
   });
 
   /* ---------- join ---------- */
+  tsCodeInput($("#join-code"));
+  $("#join-code").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("#btn-join").click();
+  });
   $("#btn-join").addEventListener("click", async () => {
     $("#join-error").classList.add("hidden");
-    const code = $("#join-code").value.trim().toLowerCase();
+    const code = tsCodeValue($("#join-code"));
     if (!code) return;
+    if (code.replace("-", "").length < 6) {
+      showErr("#join-error", "That code looks short - they are 6 characters, like V7K-2BE.");
+      return;
+    }
     try {
       await Store.joinSync(code);
       location.href = "app.html";

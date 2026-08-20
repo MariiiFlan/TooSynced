@@ -242,7 +242,10 @@
         fix.className = "repair-btn";
         pill.parentNode.insertBefore(fix, pill.nextSibling);
       }
-      fix.innerHTML = "🛟 Repair " + TS.prettyShort(broke).split(",")[0];
+      const short = TS.prettyShort(broke).split(",")[0];
+      fix.innerHTML = window.matchMedia("(max-width:820px)").matches
+        ? "🛟 Repair"
+        : "🛟 Repair " + short;
       fix.title = "Your streak broke on " + TS.prettyDay(broke);
       fix.onclick = () => askRepair(broke);
     } else if (fix) fix.remove();
@@ -431,8 +434,9 @@
     if (t.rsvp) {
       const going = rsvpsFor(t.id, currentDate).filter(r => r.status === "in").length;
       const b = document.createElement("span");
-      b.className = "anytime-chip";
+      b.className = "rsvp-chip";
       b.textContent = going ? going + " IN" : "INVITE";
+      b.title = going ? going + " coming" : "Open invite - people can say if they're coming";
       badges.appendChild(b);
     }
     if (badges.children.length) row.appendChild(badges);

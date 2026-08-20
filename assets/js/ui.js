@@ -445,3 +445,73 @@ window.tsBottomNav = (active) => {
   document.body.appendChild(nav);
   document.documentElement.classList.add("has-tabbar");
 };
+
+
+/* ============================================================
+   Invite codes: links that actually resolve, and an input that
+   punctuates itself so nobody has to type the dash.
+   ============================================================ */
+
+/* Build a join link that works from wherever the app is really served.
+   On the web that is the current origin, so the link is never dead just
+   because a custom domain has not been pointed yet. */
+window.tsInviteUrl = (code) => {
+  const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+  let base;
+  if (isNative) {
+    base = (CONFIG.APP_URL || "").replace(/\/+$/, "");
+  } else if (location.protocol === "http:" || location.protocol === "https:") {
+    base = location.origin + location.pathname.replace(/[^/]*$/, "").replace(/\/+$/, "");
+  } else {
+    base = (CONFIG.APP_URL || "").replace(/\/+$/, "");
+  }
+  return base + "/index.html?join=" + encodeURIComponent(code);
+};
+
+/* What we actually send people. The code comes first because it always
+   works, even if they open the link on a device that has the app. */
+window.tsInviteMessage = (code, syncName) => {
+  const url = tsInviteUrl(code);
+  const who = syncName ? '"' + syncName + '"' : "my sync";
+  return "Join " + who + " on TooSynced.\n\n" +
+         "Code: " + code.toUpperCase() + "\n" +
+         "Or tap: " + url;
+};
+
+/* Format as you type: lowercase storage, XXX-XXX shape, dash inserted
+   automatically, and pasting a full code still works. */
+window.tsCodeInput = (el) => {
+  if (!el || el.dataset.coded) return;
+  el.dataset.coded = "1";
+  el.setAttribute("autocapitalize", "characters");
+  el.setAttribute("autocomplete", "off");
+  el.setAttribute("autocorrect", "off");
+  el.setAttribute("spellcheck", "false");
+  el.setAttribute("inputmode", "text");
+  el.maxLength = 7;
+
+  const clean = (v) => v.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 6);
+
+  el.addEventListener("input", () => {
+    const atEnd = el.selectionStart === el.value.length;
+    const raw = clean(el.value);
+    const out = raw.length > 3 ? raw.slice(0, 3) + "-" + raw.slice(3) : raw;
+    el.value = out.toUpperCase();
+    if (atEnd) el.setSelectionRange(el.value.length, el.value.length);
+  });
+
+  /* backspacing over the dash should eat the character before it */
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Backspace" && el.selectionStart === 4 && el.selectionStart === el.selectionEnd) {
+      e.preventDefault();
+      const raw = clean(el.value);
+      el.value = raw.slice(0, 2).toUpperCase();
+    }
+  });
+};
+
+/* the value to send to the store: always lowercase xxx-xxx */
+window.tsCodeValue = (el) => {
+  const raw = (el.value || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return raw.length > 3 ? raw.slice(0, 3) + "-" + raw.slice(3, 6) : raw;
+};

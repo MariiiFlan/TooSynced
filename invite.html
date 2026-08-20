@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#FBFAFF">
-<link rel="manifest" href="manifest.webmanifest?v=14">
-<link rel="icon" href="icons/favicon.png?v=14">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=14">
+<link rel="manifest" href="manifest.webmanifest?v=16">
+<link rel="icon" href="icons/favicon.png?v=16">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=16">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css?v=14">
+<link rel="stylesheet" href="assets/css/main.css?v=16">
 <title>Invite - TooSynced</title>
 </head>
 <body>
@@ -36,19 +36,28 @@
         </div>
       </div>
 
-      <div class="field" style="gap:9px;">
-        <span class="invite-label">YOUR INVITE LINK</span>
-        <div class="invite-row">
-          <div class="invite-link" id="invite-link">generating…</div>
-          <button class="btn btn--primary" id="btn-copy">Copy link</button>
-        </div>
-        <span class="invite-note" id="invite-note">Anyone with this link can join.</span>
+      <div class="field" style="gap:10px;">
+        <span class="invite-label">INVITE CODE</span>
+        <button class="code-big" id="code-big" title="Tap to copy">
+          <span id="code-text">···-···</span>
+          <span class="code-copy">Tap to copy</span>
+        </button>
+        <span class="invite-note" id="invite-note">They enter this on the "Join with an invite code" screen.</span>
       </div>
 
       <div class="share-row">
-        <button class="btn" id="btn-share-text">Share by text</button>
-        <button class="btn" id="btn-share-email">Email invite</button>
+        <button class="btn btn--primary" id="btn-share-text">Send invite</button>
+        <button class="btn" id="btn-copy">Copy link</button>
       </div>
+
+      <details class="link-details">
+        <summary>Or use the link</summary>
+        <div class="invite-link" id="invite-link" style="margin-top:10px;">generating...</div>
+        <span class="invite-note" style="display:block;margin-top:8px;">
+          The link only opens the app if it is installed, or if the site is
+          reachable at that address. The code always works.
+        </span>
+      </details>
 
       <div class="hr"></div>
 
@@ -82,7 +91,7 @@
 </div>
 
 <script src="capacitor.js"></script>
-<script src="assets/js/config.js?v=14"></script>
+<script src="assets/js/config.js?v=16"></script>
 <script>
   if (!CONFIG.DEMO_MODE) {
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
@@ -90,11 +99,11 @@
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
   }
 </script>
-<script src="assets/js/store.js?v=14"></script>
-<script src="assets/js/ui.js?v=14"></script>
-<script src="assets/js/native.js?v=14"></script>
-<script src="assets/js/plan.js?v=14"></script>
-<script src="assets/js/pro.js?v=14"></script>
-<script src="assets/js/invite.js?v=14"></script>
+<script src="assets/js/store.js?v=16"></script>
+<script src="assets/js/ui.js?v=16"></script>
+<script src="assets/js/native.js?v=16"></script>
+<script src="assets/js/plan.js?v=16"></script>
+<script src="assets/js/pro.js?v=16"></script>
+<script src="assets/js/invite.js?v=16"></script>
 </body>
 </html>

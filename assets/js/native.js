@@ -171,7 +171,11 @@ const TSNative = (() => {
     async share(text, url) {
       const S = plugin("Share");
       if (!S) return false;
-      try { await S.share({ text, url, dialogTitle: "Share" }); return true; }
+      /* pass everything as text: some targets keep only the url field and
+         would silently drop the invite code */
+      const payload = url ? { text: text + " " + url, dialogTitle: "Share" }
+                          : { text, dialogTitle: "Share" };
+      try { await S.share(payload); return true; }
       catch (e) { return false; }
     }
   };
