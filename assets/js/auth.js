@@ -35,6 +35,7 @@
 
   function showError(msg) {
     const el = $("#auth-error");
+    if (!msg) { el.classList.add("hidden"); return; }   // user cancelled
     el.textContent = msg; el.classList.remove("hidden");
   }
   function clearError() { $("#auth-error").classList.add("hidden"); }
@@ -203,6 +204,17 @@
     if (code.includes("popup-blocked") || code.includes("popup-closed"))
       return "The Google window was closed before finishing. Try again.";
     if (code.includes("network-request-failed")) return "No connection. Check your signal and try again.";
+
+    /* Android Credential Manager errors. "No credentials available" almost
+       always means the build's signing fingerprint isn't registered, not
+       that the person has no Google account. */
+    const m = (err && err.message) || "";
+    if (/no credentials|no matching credential|credential manager|GetCredentialException/i.test(m))
+      return "Google sign-in isn't set up for this build yet. Use email or phone for now - it works the same.";
+    if (/10:|DEVELOPER_ERROR|ApiException: 10/i.test(m))
+      return "Google sign-in isn't configured for this build. Use email or phone instead.";
+    if (/12501|canceled|cancelled/i.test(m))
+      return "";
     return err.message || "Something went wrong. Try again.";
   }
 

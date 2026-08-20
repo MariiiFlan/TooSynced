@@ -478,13 +478,25 @@ const FirebaseStore = (() => {
       const FA = window.Capacitor && window.Capacitor.Plugins
         && window.Capacitor.Plugins.FirebaseAuthentication;
       if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && FA) {
-        const res = await FA.signInWithGoogle();
-        const idToken = res && res.credential && res.credential.idToken;
-        const accessToken = res && res.credential && res.credential.accessToken;
-        if (!idToken && !accessToken) throw new Error("Google sign-in was cancelled.");
-        const credential = firebase.auth.GoogleAuthProvider.credential(idToken || null, accessToken || null);
-        const out = await auth.signInWithCredential(credential);
-        return { uid: out.user.uid };
+        try {
+          const res = await FA.signInWithGoogle();
+          const idToken = res && res.credential && res.credential.idToken;
+          const accessToken = res && res.credential && res.credential.accessToken;
+          if (!idToken && !accessToken) throw new Error("Google sign-in was cancelled.");
+          const credential = firebase.auth.GoogleAuthProvider.credential(idToken || null, accessToken || null);
+          const out = await auth.signInWithCredential(credential);
+          return { uid: out.user.uid };
+        } catch (e) {
+          const m = (e && e.message) || "";
+          /* a signing-fingerprint mismatch shows up as "no credentials".
+             The web popup uses a different client and often still works. */
+          if (/no credentials|DEVELOPER_ERROR|ApiException: 10/i.test(m)) {
+            console.warn("[TooSynced] native Google sign-in unavailable, trying web flow", e);
+            const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+            return { uid: cred.user.uid };
+          }
+          throw e;
+        }
       }
       const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
       return { uid: cred.user.uid };
