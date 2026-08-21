@@ -258,19 +258,49 @@ const TS_THEMES = {
 window.tsApplyTheme = (key) => {
   const t = TS_THEMES[key] || TS_THEMES.lavender;
   const r = document.documentElement.style;
-  r.setProperty("--primary", t.primary);
-  r.setProperty("--deep", t.deep);
-  r.setProperty("--lav", t.lav);
-  r.setProperty("--chip-bg", t.chipBg);
-  r.setProperty("--chip-border", t.chipBorder);
-  r.setProperty("--bg", t.bg);
-  r.setProperty("--bg-alt", t.bgAlt);
-  r.setProperty("--border", t.border);
-  r.setProperty("--border2", t.border2);
+  const dark = document.documentElement.getAttribute("data-mode") === "dark";
+
+  /* the accent colour carries over either way, but surfaces must not:
+     a pale lavender background on dark mode would be blinding */
+  r.setProperty("--primary", dark ? lighten(t.primary) : t.primary);
+  r.setProperty("--deep", dark ? t.lav : t.deep);
+  r.setProperty("--lav", dark ? mix(t.primary, "#000", .35) : t.lav);
+
+  if (dark) {
+    /* barely-there tint so a theme reads on dark without turning it into
+       a coloured app - the accent does the talking */
+    r.setProperty("--chip-bg", mix(t.primary, "#0B0B0D", .88));
+    r.setProperty("--chip-border", mix(t.primary, "#0B0B0D", .74));
+    r.removeProperty("--bg");
+    r.removeProperty("--bg-alt");
+    r.removeProperty("--border");
+    r.removeProperty("--border2");
+  } else {
+    r.setProperty("--chip-bg", t.chipBg);
+    r.setProperty("--chip-border", t.chipBorder);
+    r.setProperty("--bg", t.bg);
+    r.setProperty("--bg-alt", t.bgAlt);
+    r.setProperty("--border", t.border);
+    r.setProperty("--border2", t.border2);
+  }
+
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", t.bg);
+  if (meta) meta.setAttribute("content", dark ? "#0B0B0D" : t.bg);
   try { localStorage.setItem("ts_theme", key); } catch (e) {}
 };
+
+/* tiny colour helpers so themes can be re-tinted for dark mode */
+function hexToRgb(h) {
+  h = h.replace("#", "");
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function mix(a, b, amount) {
+  const A = hexToRgb(a), B = hexToRgb(b);
+  const c = A.map((v, i) => Math.round(v + (B[i] - v) * amount));
+  return "#" + c.map(v => v.toString(16).padStart(2, "0")).join("");
+}
+function lighten(hex) { return mix(hex, "#ffffff", .22); }
 
 /* paint the last known theme immediately so pages don't flash */
 (function () {

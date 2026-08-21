@@ -35,12 +35,18 @@
       const row = document.createElement("div");
       row.className = "msg" + (mine ? " mine" : "");
       const showWho = !mine && sync.kind === "group" && lastFrom !== m.from;
+      const reacts = m.reactions || {};
+      const chips = Object.keys(reacts).filter(k => (reacts[k] || []).length).map(k =>
+        '<button class="rx' + ((reacts[k] || []).includes(me.uid) ? " mine" : "") +
+        '" data-m="' + m.id + '" data-e="' + k + '">' + k +
+        '<span>' + reacts[k].length + "</span></button>").join("");
+
       row.innerHTML =
         (mine ? "" : tsAvatar(person, 28)) +
-        '<div><div class="bubble">' +
+        '<div class="bwrap"><div class="bubble" data-m="' + m.id + '">' +
           (showWho ? '<div class="who">' + tsEsc(person.name) + "</div>" : "") +
           tsEsc(m.text) +
-        "</div></div>" +
+        "</div>" + (chips ? '<div class="rxs">' + chips + "</div>" : "") + "</div>" +
         '<span class="time">' + clock(m.at) + "</span>";
       el.appendChild(row);
       lastFrom = m.from;
@@ -51,7 +57,46 @@
       if (latest.from !== me.uid) tsChime();
     }
     lastCount = msgs.length;
+    wireReactions(el);
     if (nearBottom || lastCount === msgs.length) el.scrollTop = el.scrollHeight;
+  }
+
+  /* long-press (or right-click) a bubble to react */
+  const RX = ["❤️", "😂", "🔥", "👏", "😭", "💀"];
+  function wireReactions(el) {
+    el.querySelectorAll(".bubble").forEach(b => {
+      let timer = null;
+      const open = (e) => { e.preventDefault(); openPicker(b, b.dataset.m); };
+      b.addEventListener("contextmenu", open);
+      b.addEventListener("touchstart", () => { timer = setTimeout(() => openPicker(b, b.dataset.m), 420); }, { passive: true });
+      ["touchend", "touchmove", "touchcancel"].forEach(ev =>
+        b.addEventListener(ev, () => clearTimeout(timer), { passive: true }));
+      b.addEventListener("dblclick", () => Store.reactToMessage(b.dataset.m, "❤️"));
+    });
+    el.querySelectorAll(".rx").forEach(c => c.addEventListener("click", () => {
+      const already = c.classList.contains("mine");
+      Store.reactToMessage(c.dataset.m, already ? null : c.dataset.e);
+    }));
+  }
+
+  function openPicker(anchor, msgId) {
+    document.querySelectorAll(".rx-picker").forEach(x => x.remove());
+    const box = document.createElement("div");
+    box.className = "rx-picker";
+    box.innerHTML = RX.map(e => '<button data-e="' + e + '">' + e + "</button>").join("");
+    document.body.appendChild(box);
+    const r = anchor.getBoundingClientRect();
+    const w = RX.length * 42 + 12;
+    box.style.left = Math.max(10, Math.min(window.innerWidth - w - 10, r.left)) + "px";
+    box.style.top = Math.max(10, r.top - 54) + "px";
+    box.querySelectorAll("button").forEach(b => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      Store.reactToMessage(msgId, b.dataset.e);
+      box.remove();
+    }));
+    setTimeout(() => document.addEventListener("click", function c() {
+      box.remove(); document.removeEventListener("click", c);
+    }), 0);
   }
 
   function clock(ts) {
@@ -65,6 +110,10 @@
     if (!text) return;
     input.value = "";
     await Store.sendMessage(text);
+    if (typeof TSPush !== "undefined") {
+      TSPush.sendToSync(sync, me.name || "New message", text,
+                        { syncId: sync.id, page: "chat.html" });
+    }
     $("#chat-scroll").scrollTop = $("#chat-scroll").scrollHeight;
   }
 

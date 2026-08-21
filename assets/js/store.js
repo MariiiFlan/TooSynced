@@ -43,10 +43,10 @@ function tsRid(p) { return (p || "id") + "_" + Math.random().toString(36).slice(
    ============================================================ */
 const DemoStore = (() => {
   const KEY = "toosynced_demo_v2";
-  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [], synclings: [] };
+  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [], synclings: [], goals: [], pings: [] };
 
   function blank() {
-    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], synclings: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
+    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], synclings: [], goals: [], pings: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
   }
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
@@ -69,6 +69,8 @@ const DemoStore = (() => {
     if (kind === "repairs" || kind === "all") L.repairs.forEach(cb => cb(Object.values(db.repairs || {}).filter(inSync)));
     if (kind === "shames" || kind === "all") L.shames.forEach(cb => cb((db.shames || []).filter(inSync)));
     if (kind === "synclings" || kind === "all") L.synclings.forEach(cb => cb((db.synclings || []).filter(inSync)));
+    if (kind === "goals" || kind === "all") L.goals.forEach(cb => cb((db.goals || []).filter(inSync)));
+    if (kind === "pings" || kind === "all") L.pings.forEach(cb => cb((db.pings || []).filter(inSync)));
     if (kind === "sync" || kind === "all") L.sync.forEach(cb => cb(s));
     if (kind === "syncs" || kind === "all") L.syncs.forEach(cb => cb(Object.values(db.syncs)));
   }
@@ -379,6 +381,55 @@ const DemoStore = (() => {
     async markNudgeSeen(id) {
       const db = load(); const n = db.nudges.find(x => x.id === id);
       if (n) n.seen = true; save(db); emit("nudges");
+    },
+
+    /* ---------- message reactions ---------- */
+    async reactToMessage(msgId, emoji) {
+      const db = load(); const s = active(db);
+      const list = (db.messages[s.id] || []);
+      const m = list.find(x => x.id === msgId);
+      if (!m) return;
+      m.reactions = m.reactions || {};
+      const mine = db.user.uid;
+      Object.keys(m.reactions).forEach(k => {
+        m.reactions[k] = (m.reactions[k] || []).filter(u => u !== mine);
+        if (!m.reactions[k].length) delete m.reactions[k];
+      });
+      if (emoji) {
+        m.reactions[emoji] = (m.reactions[emoji] || []).concat([mine]);
+      }
+      save(db); emit("messages");
+    },
+
+    /* ---------- shared goals ---------- */
+    watchGoals(cb) { L.goals.push(cb); emit("goals"); },
+    async addGoal(g) {
+      const db = load(); const s = active(db);
+      if (!db.goals) db.goals = [];
+      db.goals.push({ ...g, id: tsRid("g"), syncId: s.id, createdAt: Date.now() });
+      save(db); emit("goals");
+    },
+    async updateGoal(id, patch) {
+      const db = load();
+      const g = (db.goals || []).find(x => x.id === id);
+      if (g) Object.assign(g, patch);
+      save(db); emit("goals");
+    },
+    async deleteGoal(id) {
+      const db = load();
+      db.goals = (db.goals || []).filter(x => x.id !== id);
+      save(db); emit("goals");
+    },
+
+    /* ---------- status ping ---------- */
+    watchPings(cb) { L.pings.push(cb); emit("pings"); },
+    async sendPing(text, emoji) {
+      const db = load(); const s = active(db);
+      if (!db.pings) db.pings = [];
+      db.pings = db.pings.filter(p => Date.now() - p.at < 4 * 3600000);
+      db.pings.push({ id: tsRid("p"), syncId: s.id, from: db.user.uid,
+                      text, emoji: emoji || "👋", at: Date.now() });
+      save(db); emit("pings");
     },
 
     /* ---------- synclings ---------- */
@@ -883,6 +934,44 @@ const FirebaseStore = (() => {
       return q.size;
     },
     async markNudgeSeen(id) { await syncRef().collection("nudges").doc(id).update({ seen: true }); },
+
+    /* ---------- message reactions ---------- */
+    async reactToMessage(msgId, emoji) {
+      const ref = syncRef().collection("messages").doc(msgId);
+      const snap = await ref.get();
+      if (!snap.exists) return;
+      const r = (snap.data() || {}).reactions || {};
+      Object.keys(r).forEach(k => {
+        r[k] = (r[k] || []).filter(u => u !== uid);
+        if (!r[k].length) delete r[k];
+      });
+      if (emoji) r[emoji] = (r[emoji] || []).concat([uid]);
+      await ref.update({ reactions: r });
+    },
+
+    /* ---------- shared goals ---------- */
+    watchGoals(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("goals").onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      unsubs.push(un);
+    },
+    async addGoal(g) { await syncRef().collection("goals").add({ ...g, createdAt: Date.now() }); },
+    async updateGoal(id, patch) { await syncRef().collection("goals").doc(id).update(patch); },
+    async deleteGoal(id) { await syncRef().collection("goals").doc(id).delete(); },
+
+    /* ---------- status ping ---------- */
+    watchPings(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("pings").orderBy("at", "desc").limit(20)
+        .onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))
+          .filter(p => Date.now() - (p.at || 0) < 4 * 3600000)));
+      unsubs.push(un);
+    },
+    async sendPing(text, emoji) {
+      await syncRef().collection("pings").add({
+        from: uid, text, emoji: emoji || "👋", at: Date.now()
+      });
+    },
 
     /* ---------- synclings ---------- */
     watchSynclings(cb) {

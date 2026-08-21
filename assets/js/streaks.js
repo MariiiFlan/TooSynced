@@ -29,6 +29,11 @@
       $("#legend-them").textContent = "Group avg";
     }
 
+    if (Store.watchGoals) Store.watchGoals((g) => {
+      if (typeof TSGoals !== "undefined") {
+        TSGoals.render("#goals-mount", { goals: g || [], tasks, completions, members, sync: s });
+      }
+    });
     Store.watchTasks((t) => { tasks = t; render(); });
     Store.watchCompletions((c) => { completions = new Map(c.map(x => [x.taskId + "_" + x.date, x])); render(); });
     if (window.tsApplyTheme) tsApplyTheme(s.theme || "lavender");

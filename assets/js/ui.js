@@ -355,6 +355,7 @@ function tsRequireSync(cb) {
     Store.onAuth(async (user) => {
       if (!user) { location.href = "index.html"; return; }
       if (window.TSNative) TSNative.init(user);
+      if (typeof TSPush !== "undefined") TSPush.init(user);
       const sync = await Store.getSync();
       if (!sync) { location.href = "syncs.html"; return; }
       if (window.tsStartAlerts) tsStartAlerts(user, sync);
@@ -543,3 +544,58 @@ window.tsCodeValue = (el) => {
   const raw = (el.value || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
   return raw.length > 3 ? raw.slice(0, 3) + "-" + raw.slice(3, 6) : raw;
 };
+
+
+/* ============================================================
+   Dark mode
+   auto (follow the phone) / light / dark. Applied before first
+   paint by an inline script in the head, so nothing flashes.
+   ============================================================ */
+const TSMode = (() => {
+  const KEY = "ts_mode";
+
+  function stored() {
+    try { return localStorage.getItem(KEY) || "auto"; } catch (e) { return "auto"; }
+  }
+  function systemDark() {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function resolved(mode) {
+    const m = mode || stored();
+    return m === "auto" ? (systemDark() ? "dark" : "light") : m;
+  }
+
+  function apply(mode) {
+    const dark = resolved(mode) === "dark";
+    document.documentElement.setAttribute("data-mode", dark ? "dark" : "light");
+
+    /* the browser chrome and the native status bar should match */
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#0B0B0D" : "#FBFAFF");
+    if (window.TSNative && TSNative.isNative) {
+      const SB = TSNative.plugin("StatusBar");
+      if (SB) {
+        SB.setStyle({ style: dark ? "DARK" : "LIGHT" }).catch(() => {});
+        SB.setBackgroundColor({ color: dark ? "#0B0B0D" : "#7C3AED" }).catch(() => {});
+      }
+    }
+    /* re-tint the sync theme for the new background */
+    if (window.tsApplyTheme) {
+      try { tsApplyTheme(localStorage.getItem("ts_theme") || "lavender"); } catch (e) {}
+    }
+  }
+
+  function set(mode) {
+    try { localStorage.setItem(KEY, mode); } catch (e) {}
+    apply(mode);
+  }
+
+  /* follow the system live while on auto */
+  if (window.matchMedia) {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => { if (stored() === "auto") apply("auto"); };
+    mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
+  }
+
+  return { get: stored, set, apply, resolved, isDark: () => resolved() === "dark" };
+})();

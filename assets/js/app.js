@@ -29,6 +29,7 @@
   let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
   let firstNudgeLoad = true, firstPraiseLoad = true;
   let rsvps = [], locations = {}, mySyncs = [], repairs = [], shames = [], synclings = [];
+  let goals = [], pings = [];
   let seenShames = new Set();
   let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
   let detailTask = null;
@@ -58,6 +59,8 @@
     if (Store.watchRepairs) Store.watchRepairs((r) => { repairs = r || []; render(); });
     if (Store.watchShames) Store.watchShames((x) => { shames = x || []; handleShames(); render(); });
     if (Store.watchSynclings) Store.watchSynclings((x) => { synclings = x || []; render(); });
+    if (Store.watchGoals) Store.watchGoals((x) => { goals = x || []; render(); });
+    if (Store.watchPings) Store.watchPings((x) => { pings = x || []; render(); });
   });
 
   function applySync(s) {
@@ -81,6 +84,7 @@
     return tasks
       .filter(t => t.owner === uid && TS.occursOn(t, dateStr))
       .filter(t => !t.private || t.owner === me.uid)
+      .filter(t => !(t.skips || []).includes(dateStr))
       .sort((a, b) => {
         /* timed tasks in clock order first, "anytime" ones after */
         if (a.time && b.time) return a.time.localeCompare(b.time);
@@ -104,6 +108,22 @@
     });
   }
 
+  /* 30 day record for a task, as numbers and a dot strip */
+  function historyFor(t) {
+    let occ = 0, done = 0, dots = "";
+    for (let i = 29; i >= 0; i--) {
+      const d = TS.addDays(TS.today(), -i);
+      if (!TS.occursOn(t, d)) continue;
+      if ((t.skips || []).includes(d)) continue;
+      occ++;
+      const ok = isDone(t, d);
+      if (ok) done++;
+      const missed = !ok && d < TS.today();
+      dots += '<i class="' + (ok ? "d" : missed ? "m" : "") + '" title="' + d + '"></i>';
+    }
+    return { occ, done, dots, pct: occ ? Math.round(done / occ * 100) : 0 };
+  }
+
   function praisesFor(taskId, dateStr) {
     return praises.filter(p => p.taskId === taskId && p.date === dateStr);
   }
@@ -122,6 +142,10 @@
       return false;
     }
     await Store.sendNudge(task.owner, task.id, currentDate);
+    if (typeof TSPush !== "undefined") {
+      TSPush.send(task.owner, (me.name || "Someone") + " nudged you 🔔", task.name,
+                  { syncId: sync.id, page: "app.html" });
+    }
     tsChime();
     if (chk.free) tsToast("Nudge sent to " + ownerName);
     else tsToast("Nudge sent - " + chk.left + " left today");
@@ -392,6 +416,7 @@
     members.forEach(m => cols.appendChild(personColumn(m, changed)));
 
     applyMobileTab();
+    if (typeof TSPings !== "undefined") TSPings.render("#ping-mount", { me, sync, members, pings });
     renderSynclings();
     if (window.tsRenderChores) tsRenderChores({
       mount: "#chores-mount", sync, members, me,
@@ -601,6 +626,10 @@
           tsFlyDot(sb, target || sb);
           const line = SHAME_LINES[Math.floor(Math.random() * SHAME_LINES.length)];
           await Store.sendShame(t.owner, t.id, currentDate, line);
+          if (typeof TSPush !== "undefined") {
+            TSPush.send(t.owner, (me.name || "Someone") + " shamed you 😈", t.name + " - " + line,
+                        { syncId: sync.id, page: "app.html" });
+          }
           tsChime();
           sb.innerHTML = "😈 Shamed";
           tsToast("Shame sent to " + owner.name + " 😈");
@@ -644,6 +673,10 @@
         box.remove();
         flyPraise(anchor, em);
         await Store.sendPraise(task.owner, task.id, currentDate, em);
+        if (typeof TSPush !== "undefined") {
+          TSPush.send(task.owner, (me.name || "Someone") + " cheered you on " + em, task.name,
+                      { syncId: sync.id, page: "app.html" });
+        }
         tsToast("Sent " + em + " to " + owner.name);
       });
       box.appendChild(b);
@@ -837,6 +870,33 @@
         '<span class="praise-count">' + p.emoji + " " + tsEsc(person(p.from).name) + "</span>").join("");
     } else $("#d-praise-wrap").classList.add("hidden");
 
+    /* snooze - better than lying about whether you did it */
+    const snoozeWrap = $("#d-snooze-wrap");
+    if (mine && !done) {
+      snoozeWrap.classList.remove("hidden");
+      $("#d-snooze").onclick = async () => {
+        const to = TS.addDays(currentDate, 1);
+        if (task.repeat && task.repeat.type !== "none") {
+          /* a repeating task can't move - skip today instead */
+          const sk = (task.skips || []).concat([currentDate]);
+          await Store.updateTask(task.id, { skips: sk });
+          tsToast("Skipped today - back tomorrow");
+        } else {
+          await Store.updateTask(task.id, { date: to });
+          tsToast("Moved to " + TS.prettyShort(to));
+        }
+        closeDetail();
+      };
+    } else snoozeWrap.classList.add("hidden");
+
+    /* how often this actually gets done */
+    const hist = historyFor(task);
+    $("#d-history").innerHTML =
+      '<div class="hist-line"><b>' + hist.done + " of " + hist.occ + "</b>" +
+      "<span>last 30 days" + (hist.occ ? " · " + hist.pct + "%" : "") + "</span></div>" +
+      '<div class="hist-dots">' + hist.dots + "</div>";
+    $("#d-history-wrap").classList.toggle("hidden", !hist.occ);
+
     /* footer actions */
     const act = $("#d-action"), edit = $("#d-edit");
     edit.classList.toggle("hidden", !mine);
@@ -857,6 +917,10 @@
         }
         const line = SHAME_LINES[Math.floor(Math.random() * SHAME_LINES.length)];
         await Store.sendShame(task.owner, task.id, currentDate, line);
+        if (typeof TSPush !== "undefined") {
+          TSPush.send(task.owner, (me.name || "Someone") + " shamed you 😈", task.name + " - " + line,
+                      { syncId: sync.id, page: "app.html" });
+        }
         tsChime(); tsToast("Shame sent to " + owner.name + " 😈"); closeDetail();
       };
     } else if (task.allowNudge !== false) {
@@ -1086,6 +1150,11 @@
     /* say exactly what happened - no more guessing whether it fanned out */
     if (editingId) { tsToast("Task updated"); return; }
     if (data.private) { tsToast("Private task added 🔒"); return; }
+
+    if (typeof TSPush !== "undefined" && !data.private) {
+      TSPush.sendToSync(sync, (me.name || "Someone") + " added a task",
+                        data.name, { syncId: sync.id, page: "app.html" });
+    }
 
     const added = result && result.added ? result.added : 1;
     const failed = result && result.failed ? result.failed : 0;

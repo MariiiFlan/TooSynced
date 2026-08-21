@@ -48,6 +48,15 @@ const CONFIG = {
     ENTITLEMENT: "pro"
   },
 
+  /* Cloudflare Worker that actually sends the pushes.
+     Deploy worker/push-worker.js, paste the URL here.
+     Leave blank and the app just skips push - nothing breaks. */
+  PUSH_ENDPOINT: "https://toosynced-push.officialkamariflanagan.workers.dev",
+
+  /* Web push needs the VAPID key from
+     Firebase Console > Project settings > Cloud Messaging > Web Push certificates */
+  VAPID_KEY: "",
+
   /* Accounts that always have Pro - you, and anyone you comp.
      Matched on email or phone, case-insensitive. */
   FOUNDERS: [

@@ -5,13 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Settings - TooSynced</title>
 <meta name="theme-color" content="#FBFAFF">
-<link rel="manifest" href="manifest.webmanifest?v=22">
-<link rel="icon" href="icons/favicon.png?v=22">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=22">
+<link rel="manifest" href="manifest.webmanifest?v=25">
+<link rel="icon" href="icons/favicon.png?v=25">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=25">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css?v=22">
+<script>
+(function(){try{
+  var m=localStorage.getItem("ts_mode")||"auto";
+  var d=m==="dark"||(m==="auto"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-mode",d?"dark":"light");
+  if(d){var t=document.querySelector('meta[name="theme-color"]');if(t)t.setAttribute("content","#0B0B0D");}
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="assets/css/main.css?v=25">
 </head>
 <body>
 
@@ -92,6 +100,21 @@
       </div>
     </div>
 
+    <div class="settings-card">
+      <b>Appearance</b>
+      <p style="font-size:14px;color:var(--muted);line-height:1.5;">
+        Just for this device - it does not change what anyone else sees.
+      </p>
+      <div class="mode-row" id="mode-row">
+        <button class="mode-opt" data-m="auto">
+          <span class="ic">📱</span><span>Auto</span><i>Match phone</i></button>
+        <button class="mode-opt" data-m="light">
+          <span class="ic">☀️</span><span>Light</span><i>Always</i></button>
+        <button class="mode-opt" data-m="dark">
+          <span class="ic">🌙</span><span>Dark</span><i>Always</i></button>
+      </div>
+    </div>
+
     <div class="settings-card" data-needs-sync>
       <div style="display:flex;align-items:center;gap:10px;">
         <b>Sync theme</b><span id="theme-lock"></span>
@@ -148,7 +171,7 @@
 </div>
 
 <script src="capacitor.js"></script>
-<script src="assets/js/config.js?v=22"></script>
+<script src="assets/js/config.js?v=25"></script>
 <script>
   if (!CONFIG.DEMO_MODE) {
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>');
@@ -156,15 +179,17 @@
     document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"><\/script>');
   }
 </script>
-<script src="assets/js/store.js?v=22"></script>
-<script src="assets/js/ui.js?v=22"></script>
-<script src="assets/js/native.js?v=22"></script>
-<script src="assets/js/alerts.js?v=22"></script>
-<script src="assets/js/plan.js?v=22"></script>
-<script src="assets/js/items.js?v=22"></script>
-<script src="assets/js/syncling.js?v=22"></script>
-<script src="assets/js/syncling-ui.js?v=22"></script>
-<script src="assets/js/pro.js?v=22"></script>
-<script src="assets/js/settings.js?v=22"></script>
+<script src="assets/js/store.js?v=25"></script>
+<script src="assets/js/ui.js?v=25"></script>
+<script src="assets/js/native.js?v=25"></script>
+<script src="assets/js/alerts.js?v=25"></script>
+<script src="assets/js/plan.js?v=25"></script>
+<script src="assets/js/items.js?v=25"></script>
+<script src="assets/js/syncling.js?v=25"></script>
+<script src="assets/js/syncling-ui.js?v=25"></script>
+<script src="assets/js/extras.js?v=25"></script>
+<script src="assets/js/push.js?v=25"></script>
+<script src="assets/js/pro.js?v=25"></script>
+<script src="assets/js/settings.js?v=25"></script>
 </body>
 </html>

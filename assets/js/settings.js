@@ -46,6 +46,7 @@
     });
 
     if (CONFIG.DEMO_MODE) $("#btn-reset-demo").classList.remove("hidden");
+    paintMode();
     paintPro(user);
     if (s) { paintThemes(user, s); paintStreakIcon(user, s); }
   });
@@ -221,6 +222,20 @@
       const o = TSPlan.ownedCount(user, list);
       const first = $("#pro-usage").firstChild;
       if (first) first.querySelector("b").textContent = o + " of " + (pro ? "unlimited" : TSPlan.maxOwned(user));
+    });
+  };
+
+  window.paintMode = function () {
+    const cur = TSMode.get();
+    document.querySelectorAll(".mode-opt").forEach(b => {
+      b.classList.toggle("on", b.dataset.m === cur);
+      b.onclick = () => {
+        TSMode.set(b.dataset.m);
+        paintMode();
+        tsToast(b.dataset.m === "auto"
+          ? "Following your phone"
+          : b.dataset.m === "dark" ? "Dark mode on" : "Light mode on");
+      };
     });
   };
 
