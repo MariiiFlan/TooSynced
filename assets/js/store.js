@@ -43,10 +43,10 @@ function tsRid(p) { return (p || "id") + "_" + Math.random().toString(36).slice(
    ============================================================ */
 const DemoStore = (() => {
   const KEY = "toosynced_demo_v2";
-  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [], synclings: [], goals: [], pings: [] };
+  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [], synclings: [], goals: [], pings: [], proposals: [] };
 
   function blank() {
-    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], synclings: [], goals: [], pings: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
+    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], synclings: [], goals: [], pings: [], proposals: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
   }
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
@@ -71,6 +71,7 @@ const DemoStore = (() => {
     if (kind === "synclings" || kind === "all") L.synclings.forEach(cb => cb((db.synclings || []).filter(inSync)));
     if (kind === "goals" || kind === "all") L.goals.forEach(cb => cb((db.goals || []).filter(inSync)));
     if (kind === "pings" || kind === "all") L.pings.forEach(cb => cb((db.pings || []).filter(inSync)));
+    if (kind === "proposals" || kind === "all") L.proposals.forEach(cb => cb((db.proposals || []).filter(inSync)));
     if (kind === "sync" || kind === "all") L.sync.forEach(cb => cb(s));
     if (kind === "syncs" || kind === "all") L.syncs.forEach(cb => cb(Object.values(db.syncs)));
   }
@@ -104,7 +105,8 @@ const DemoStore = (() => {
 
     async signUpEmail(name, email, pass, phone) {
       const db = load();
-      db.user = { uid: "me", name: name || "You", phone: tsE164(phone) || null, birthday: null, photo: null, activeSyncId: null };
+      db.user = { uid: "me", name: name || "You", email: (email || "").trim() || null,
+                  phone: tsE164(phone) || null, birthday: null, photo: null, activeSyncId: null };
       save(db); return db.user;
     },
     async signInEmail() {
@@ -383,6 +385,36 @@ const DemoStore = (() => {
       if (n) n.seen = true; save(db); emit("nudges");
     },
 
+    /* ---------- proposed (synced) tasks ---------- */
+    watchProposals(cb) { L.proposals.push(cb); emit("proposals"); },
+    async proposeTask(data) {
+      const db = load(); const s = active(db);
+      if (!db.proposals) db.proposals = [];
+      const rec = {
+        id: tsRid("pr"), syncId: s.id, from: db.user.uid,
+        data, accepted: {}, declined: [], createdAt: Date.now()
+      };
+      rec.accepted[db.user.uid] = true;      // the proposer is already in
+      db.proposals.push(rec);
+      save(db); emit("proposals");
+      return rec;
+    },
+    async respondProposal(id, yes) {
+      const db = load();
+      const p = (db.proposals || []).find(x => x.id === id);
+      if (!p) return;
+      const uid = db.user.uid;   // demo store has no module-level uid
+      if (yes) {
+        p.accepted[uid] = true;
+        p.declined = (p.declined || []).filter(u => u !== uid);
+      } else {
+        delete p.accepted[uid];
+        p.declined = (p.declined || []).concat([uid]);
+      }
+      save(db); emit("proposals");
+      return p;
+    },
+
     /* ---------- message reactions ---------- */
     async reactToMessage(msgId, emoji) {
       const db = load(); const s = active(db);
@@ -550,6 +582,7 @@ const FirebaseStore = (() => {
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       await db.collection("users").doc(cred.user.uid).set({
         name: name || "You", birthday: null, photo: null,
+        email: (email || "").trim().toLowerCase() || null,
         phone: tsE164(phone) || null, syncIds: [], activeSyncId: null
       });
       return { uid: cred.user.uid, name };
@@ -934,6 +967,33 @@ const FirebaseStore = (() => {
       return q.size;
     },
     async markNudgeSeen(id) { await syncRef().collection("nudges").doc(id).update({ seen: true }); },
+
+    /* ---------- proposed (synced) tasks ---------- */
+    watchProposals(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("proposals").orderBy("createdAt", "desc").limit(30)
+        .onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      unsubs.push(un);
+    },
+    async proposeTask(data) {
+      const accepted = {}; accepted[uid] = true;
+      const ref = await syncRef().collection("proposals").add({
+        from: uid, data, accepted, declined: [], createdAt: Date.now()
+      });
+      return { id: ref.id, from: uid, data, accepted, declined: [] };
+    },
+    async respondProposal(id, yes) {
+      const ref = syncRef().collection("proposals").doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return null;
+      const p = snap.data();
+      const acc = p.accepted || {};
+      let dec = p.declined || [];
+      if (yes) { acc[uid] = true; dec = dec.filter(u => u !== uid); }
+      else { delete acc[uid]; if (!dec.includes(uid)) dec = dec.concat([uid]); }
+      await ref.update({ accepted: acc, declined: dec });
+      return { id, ...p, accepted: acc, declined: dec };
+    },
 
     /* ---------- message reactions ---------- */
     async reactToMessage(msgId, emoji) {

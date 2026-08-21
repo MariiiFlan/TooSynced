@@ -57,22 +57,33 @@ const TSSyncUI = (() => {
     const days = TSSync.ageOf(sl, ctx.streak);
     const stage = TSSync.stageFor(days);
     const fading = TSSync.isFading(sl);
+    const hour = new Date().getHours();
     const mood = TSSync.moodFor({
       mineDone: ctx.state.mineDone,
       theirsDone: ctx.state.theirsDone,
       anyMissed: ctx.state.anyMissed,
-      fading,
-      hour: new Date().getHours()
+      fading, hour
     });
     const left = fading ? TSSync.hoursLeft(sl) : null;
 
+    /* a Duo shows each person separately, which is the point of it */
+    const art = sl.type === "duo"
+      ? TSSync.drawDuo(sl, {
+          size: 92, days, stage: stage.key,
+          moodA: TSSync.moodFor({ mineDone: ctx.state.mineDone, theirsDone: ctx.state.mineDone,
+                                  anyMissed: false, fading, hour }),
+          moodB: TSSync.moodFor({ mineDone: ctx.state.theirsDone, theirsDone: ctx.state.theirsDone,
+                                  anyMissed: false, fading, hour })
+        })
+      : TSSync.draw(sl, { size: 92, days, stage: stage.key, mood });
+
     return '<button class="sl-one' + (fading ? " is-fading" : "") + '" data-sl="' + sl.id + '">' +
-      '<div class="sl-art">' + TSSync.draw(sl, { size: 92, days, stage: stage.key, mood }) + "</div>" +
+      '<div class="sl-art">' + art + "</div>" +
       '<div class="sl-name">' + tsEsc(sl.name || "Syncling") + "</div>" +
       '<div class="sl-meta">' +
         (fading
           ? '<span class="sl-warn">Fading · ' + Math.ceil(left) + "h left</span>"
-          : stage.label + " · day " + days) +
+          : TSSync.stageLabel(sl.type || "creature", stage.key) + " · day " + days) +
       "</div></button>";
   }
 
@@ -107,6 +118,9 @@ const TSSyncUI = (() => {
       return;
     }
     let color = TSSync.COLORS[0].id;
+    let color2 = TSSync.COLORS[3].id;      // the other half of a Duo
+    let type = TSSync.TYPES[0].id;
+    let body = TSSync.BODIES[0].id;
     let name = "";
 
     const veil = document.createElement("div");
@@ -120,7 +134,13 @@ const TSSyncUI = (() => {
           '<div class="sl-preview" id="sl-prev"></div>' +
           '<div class="field"><label for="sl-name">Name</label>' +
             '<input class="input" id="sl-name" maxlength="16" placeholder="Momo" autocomplete="off"></div>' +
-          '<div class="field"><label>Colour</label><div class="sl-colors" id="sl-colors"></div></div>' +
+          '<div class="field"><label>Type</label><div class="sl-types" id="sl-types"></div></div>' +
+          '<div class="field" id="sl-body-field"><label>Shape</label>' +
+            '<div class="sl-bodies" id="sl-bodies"></div></div>' +
+          '<div class="field"><label id="sl-color-label">Colour</label>' +
+            '<div class="sl-colors" id="sl-colors"></div></div>' +
+          '<div class="field hidden" id="sl-color2-field"><label>Their colour</label>' +
+            '<div class="sl-colors" id="sl-colors2"></div></div>' +
         "</div>" +
         '<div class="modal-foot"><div class="spacer" style="margin-left:0;width:100%;">' +
           '<button class="btn btn--ghost" id="sl-cancel" style="flex:1;">Cancel</button>' +
@@ -130,10 +150,48 @@ const TSSyncUI = (() => {
     requestAnimationFrame(() => veil.classList.add("open"));
 
     const paint = () => {
-      veil.querySelector("#sl-prev").innerHTML =
-        TSSync.draw({ color }, { size: 132, days: 0, stage: "egg", still: true });
-      veil.querySelectorAll(".sl-color").forEach(x =>
+      const sl = { color, color2, type, body };
+      /* show what it becomes, not the egg - nobody picks something they
+         cannot see */
+      veil.querySelector("#sl-prev").innerHTML = type === "duo"
+        ? TSSync.drawDuo(sl, { size: 150, days: 0, stage: "young", moodA: "happy", moodB: "waiting", still: true })
+        : TSSync.draw(sl, { size: 132, days: 0, stage: "young", mood: "happy", still: true });
+
+      /* type */
+      veil.querySelector("#sl-types").innerHTML = TSSync.TYPES.map(t =>
+        '<button class="sl-type' + (t.id === type ? " on" : "") + '" data-t="' + t.id + '">' +
+          '<span class="art">' + (t.id === "duo"
+            ? TSSync.drawDuo({ color, color2, body }, { size: 62, days: 0, stage: "young", mood: "waiting", still: true })
+            : TSSync.draw({ color, body, type: t.id }, { size: 50, days: 0, stage: "young", mood: "waiting", still: true })) +
+          "</span><b>" + t.name + "</b><i>" + t.blurb + "</i></button>").join("");
+      veil.querySelectorAll(".sl-type").forEach(x =>
+        x.addEventListener("click", () => { type = x.dataset.t; paint(); }));
+
+      /* shape - Baby has its own silhouettes, so hide it there */
+      const bodyField = veil.querySelector("#sl-body-field");
+      bodyField.classList.toggle("hidden", type === "baby");
+      if (type !== "baby") {
+        veil.querySelector("#sl-bodies").innerHTML = TSSync.BODIES.map(bd =>
+          '<button class="sl-body' + (bd.id === body ? " on" : "") + '" data-b="' + bd.id + '">' +
+            TSSync.draw({ color, body: bd.id, type: "creature" },
+                        { size: 52, days: 0, stage: "young", mood: "waiting", still: true }) +
+            "<span>" + bd.name + "</span></button>").join("");
+        veil.querySelectorAll(".sl-body").forEach(b2 =>
+          b2.addEventListener("click", () => { body = b2.dataset.b; paint(); }));
+      }
+
+      /* colours - a Duo needs two */
+      veil.querySelector("#sl-color-label").textContent = type === "duo" ? "Your colour" : "Colour";
+      veil.querySelector("#sl-color2-field").classList.toggle("hidden", type !== "duo");
+      veil.querySelectorAll("#sl-colors .sl-color").forEach(x =>
         x.classList.toggle("on", x.dataset.c === color));
+      if (type === "duo") {
+        veil.querySelector("#sl-colors2").innerHTML = TSSync.COLORS.map(c2 =>
+          '<button class="sl-color' + (c2.id === color2 ? " on" : "") + '" data-c="' + c2.id +
+          '" style="background:' + c2.body + '"></button>').join("");
+        veil.querySelectorAll("#sl-colors2 .sl-color").forEach(x =>
+          x.addEventListener("click", () => { color2 = x.dataset.c; paint(); }));
+      }
     };
     veil.querySelector("#sl-colors").innerHTML = TSSync.COLORS.map(c =>
       '<button class="sl-color" data-c="' + c.id + '" title="' + c.name +
@@ -151,7 +209,7 @@ const TSSyncUI = (() => {
       name = veil.querySelector("#sl-name").value.trim();
       if (!name) { tsToast("Give it a name"); veil.querySelector("#sl-name").focus(); return; }
       await Store.addSyncling({
-        name, color, acc: [],
+        name, color, color2, type, body, acc: [],
         bornStreak: ctx.streak,          // its age is measured from here
         by: ctx.me.uid
       });
@@ -180,8 +238,11 @@ const TSSyncUI = (() => {
           '<button class="modal-x" id="sl-x">✕</button></div>' +
         '<div class="modal-body">' +
           '<div class="sl-preview">' +
-            TSSync.draw(sl, { size: 150, days, stage: stage.key,
-              mood: fading ? "fading" : "happy" }) + "</div>" +
+            (sl.type === "duo"
+              ? TSSync.drawDuo(sl, { size: 160, days, stage: stage.key,
+                  moodA: fading ? "fading" : "happy", moodB: fading ? "fading" : "happy" })
+              : TSSync.draw(sl, { size: 150, days, stage: stage.key,
+                  mood: fading ? "fading" : "happy" })) + "</div>" +
           (fading
             ? '<div class="sl-fade-note"><b>' + tsEsc(sl.name) + " is fading</b>" +
               "<span>" + Math.ceil(left) + " hours left. Restoring the streak brings them back.</span></div>"
@@ -191,14 +252,22 @@ const TSSyncUI = (() => {
               : '<div class="sl-next">Fully grown. Keep going for rarer accessories.</div>') +
         "</div>" +
         '<div class="modal-foot"><div class="spacer" style="margin-left:0;width:100%;">' +
-          '<button class="btn btn--ghost" id="sl-close2" style="flex:1;">Close</button>' +
+          '<button class="btn btn--ghost" id="sl-rename" style="flex:1;">Rename</button>' +
           '<button class="btn btn--primary" id="sl-wardrobe" style="flex:1;">Wardrobe</button>' +
         "</div></div></div>";
     document.body.appendChild(veil);
     requestAnimationFrame(() => veil.classList.add("open"));
     const close = () => { veil.classList.remove("open"); setTimeout(() => veil.remove(), 220); };
     veil.querySelector("#sl-x").addEventListener("click", close);
-    veil.querySelector("#sl-close2").addEventListener("click", close);
+    veil.querySelector("#sl-rename").addEventListener("click", async () => {
+      const next = prompt("Rename " + sl.name + " to:", sl.name);
+      if (next === null) return;
+      const clean = next.trim().slice(0, 16);
+      if (!clean) { tsToast("Needs a name"); return; }
+      await Store.updateSyncling(sl.id, { name: clean });
+      close();
+      tsToast("Now called " + clean);
+    });
     veil.addEventListener("click", e => { if (e.target === veil) close(); });
     veil.querySelector("#sl-wardrobe").addEventListener("click", () => {
       close();
@@ -240,12 +309,14 @@ const TSSyncUI = (() => {
     const stage = realStage === "egg" ? "hatch" : realStage;
 
     function paint() {
-      veil.querySelector("#wd-prev").innerHTML =
-        TSSync.draw({ ...sl, acc: equipped }, { size: 150, days, stage, mood: "happy", still: true });
+      veil.querySelector("#wd-prev").innerHTML = sl.type === "duo"
+        ? TSSync.drawDuo({ ...sl, acc: equipped },
+            { size: 160, days, stage, moodA: "happy", moodB: "waiting", still: true })
+        : TSSync.draw({ ...sl, acc: equipped }, { size: 150, days, stage, mood: "happy", still: true });
       veil.querySelector("#wd-sub").textContent =
         (realStage === "egg" ? "Preview - hatches soon · " : "") +
         equipped.length + " of 3 equipped · " +
-        TSSync.unlockedItems(ctx.bestStreak, ctx.isPro).length + " of " + TS_ITEMS.length + " unlocked";
+        TSSync.unlockedItems(ctx.bestStreak, ctx.isPro, ctx.unlockAll).length + " of " + TS_ITEMS.length + " unlocked";
 
       veil.querySelector("#wd-slots").innerHTML = [0, 1, 2].map(i => {
         const it = equipped[i] ? TS_ITEMS.find(x => x.id === equipped[i]) : null;
@@ -264,7 +335,7 @@ const TSSyncUI = (() => {
         b.addEventListener("click", () => { cat = b.dataset.c; paint(); }));
 
       veil.querySelector("#wd-grid").innerHTML = TS_ITEMS.filter(i => i.cat === cat).map(i => {
-        const owned = TSSync.ownsItem(i, ctx.bestStreak, ctx.isPro);
+        const owned = TSSync.ownsItem(i, ctx.bestStreak, ctx.isPro, ctx.unlockAll);
         const on = equipped.includes(i.id);
         const locked = !owned;
         return '<button class="wd-tile' + (locked ? " locked" : "") + (on ? " on" : "") +
@@ -284,7 +355,7 @@ const TSSyncUI = (() => {
 
       veil.querySelectorAll(".wd-tile").forEach(b => b.addEventListener("click", () => {
         const it = TS_ITEMS.find(x => x.id === b.dataset.i);
-        if (!TSSync.ownsItem(it, ctx.bestStreak, ctx.isPro)) {
+        if (!TSSync.ownsItem(it, ctx.bestStreak, ctx.isPro, ctx.unlockAll)) {
           if (it.tier === "pro" && it.day <= ctx.bestStreak) {
             tsPaywall("Unlock " + it.name, "Your streak icon");
           } else {

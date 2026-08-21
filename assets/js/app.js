@@ -29,7 +29,7 @@
   let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
   let firstNudgeLoad = true, firstPraiseLoad = true;
   let rsvps = [], locations = {}, mySyncs = [], repairs = [], shames = [], synclings = [];
-  let goals = [], pings = [];
+  let goals = [], pings = [], proposals = [];
   let seenShames = new Set();
   let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
   let detailTask = null;
@@ -61,6 +61,7 @@
     if (Store.watchSynclings) Store.watchSynclings((x) => { synclings = x || []; render(); });
     if (Store.watchGoals) Store.watchGoals((x) => { goals = x || []; render(); });
     if (Store.watchPings) Store.watchPings((x) => { pings = x || []; render(); });
+    if (Store.watchProposals) Store.watchProposals((x) => { proposals = x || []; render(); });
   });
 
   function applySync(s) {
@@ -242,6 +243,54 @@
   }
 
   /* ---------- render ---------- */
+  /* ---------- proposed tasks waiting on me ---------- */
+  function renderProposals() {
+    const el = document.querySelector("#proposal-mount");
+    if (!el) return;
+    const mine = proposals.filter(p =>
+      p.from !== me.uid &&
+      !(p.accepted || {})[me.uid] &&
+      !(p.declined || []).includes(me.uid));
+
+    if (!mine.length) { el.innerHTML = ""; return; }
+
+    el.innerHTML = mine.map(p => {
+      const who = person(p.from);
+      const d = p.data || {};
+      const when = d.time ? TS.prettyTime(d.time) : "anytime";
+      const rep = TS.repeatLabel(d) ? " · " + TS.repeatLabel(d) : "";
+      return '<div class="prop-card" data-p="' + p.id + '">' +
+        '<div class="prop-top">' + tsAvatar(who, 30) +
+          "<div><b>" + tsEsc(who.name.split(" ")[0]) + " wants to add this</b>" +
+          '<span>to both your schedules</span></div></div>' +
+        '<div class="prop-task"><span class="ic">' + (d.icon || "✅") + "</span>" +
+          '<div><b>' + tsEsc(d.name) + "</b><span>" + when + rep + "</span></div></div>" +
+        '<div class="prop-actions">' +
+          '<button class="btn btn--ghost prop-no" data-p="' + p.id + '">Not for me</button>' +
+          '<button class="btn btn--primary prop-yes" data-p="' + p.id + '">Add it</button>' +
+        "</div></div>";
+    }).join("");
+
+    el.querySelectorAll(".prop-yes").forEach(b => b.addEventListener("click", async () => {
+      const p = proposals.find(x => x.id === b.dataset.p);
+      if (!p) return;
+      b.disabled = true;
+      await Store.respondProposal(p.id, true);
+      /* it becomes a normal task on MY schedule, owned by me */
+      await Store.addTask({ ...p.data, proposalId: p.id }, [sync.id]);
+      if (typeof TSPush !== "undefined") {
+        TSPush.send(p.from, (me.name || "They") + " accepted", p.data.name,
+                    { syncId: sync.id, page: "app.html" });
+      }
+      tsChime();
+      tsToast("Added to your day");
+    }));
+    el.querySelectorAll(".prop-no").forEach(b => b.addEventListener("click", async () => {
+      await Store.respondProposal(b.dataset.p, false);
+      tsToast("Skipped");
+    }));
+  }
+
   /* ---------- synclings ---------- */
   function renderSynclings() {
     /* TSSync/TSSyncUI are declared with const, so they are NOT on window.
@@ -274,6 +323,8 @@
       me: me, sync: sync, members: members, synclings: synclings, streak: streak,
       bestStreak: Math.max(streak, sync.bestStreak || 0),
       isPro: TSPlan.isPro(me),
+      /* comped accounts get the whole catalog so you can actually test it */
+      unlockAll: TSPlan.isFounder(me),
       today: today,
       state: {
         mineDone: mine.length > 0 && mine.every(t => isDone(t, today)),
@@ -416,6 +467,7 @@
     members.forEach(m => cols.appendChild(personColumn(m, changed)));
 
     applyMobileTab();
+    renderProposals();
     if (typeof TSPings !== "undefined") TSPings.render("#ping-mount", { me, sync, members, pings });
     renderSynclings();
     if (window.tsRenderChores) tsRenderChores({
@@ -1049,7 +1101,10 @@
           (names.length > 3 ? " +" + (names.length - 3) + " more" : "")
         : "You're only in 1 sync right now, so this behaves the same as \"This sync\". Make another sync and it'll appear in both.",
       pick: "Choose which syncs it shows up in.",
-      private: "Only you can see this, even inside a sync."
+      private: "Only you can see this, even inside a sync.",
+      shared: members.length > 1
+        ? "Puts it on everyone's schedule once they accept. They get a notification."
+        : "Once someone joins, this will land on their schedule too."
     };
     $("#scope-hint").textContent = hints[modalScope];
     if (modalScope === "pick") {
@@ -1126,6 +1181,28 @@
       targets = all.length ? all.map(x => x.id) : [sync.id];
     } else if (modalScope === "pick") {
       targets = [sync.id].concat(Array.from(modalPickIds).filter(id => id !== sync.id));
+    }
+
+    /* "Everyone" does not just add it to your day - it asks the others,
+       and only lands on their schedule once they say yes */
+    if (!editingId && modalScope === "shared") {
+      try {
+        await Store.proposeTask(data);
+      } catch (err) {
+        tsToast(err.message || "Couldn't send that");
+        return;
+      }
+      closeModal();
+      if (typeof TSPush !== "undefined") {
+        TSPush.sendToSync(sync, (me.name || "Someone") + " wants to add a task",
+                          data.name + (data.time ? " at " + TS.prettyTime(data.time) : ""),
+                          { syncId: sync.id, page: "app.html" });
+      }
+      tsChime();
+      tsToast(members.length > 1
+        ? "Sent to " + (members.length - 1) + (members.length === 2 ? " person" : " people") + " to accept"
+        : "Saved - it'll go out when someone joins");
+      return;
     }
 
     let result = null;

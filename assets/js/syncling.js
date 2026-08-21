@@ -28,6 +28,54 @@ const TSSync = (() => {
     return Math.max(0, streak - born);
   }
 
+  /* ---------- types ----------
+     The three from the concept: one shared creature, one baby, or a
+     Duo with one creature per person that react to each other. */
+  const TYPES = [
+    { id: "creature", name: "Creature", blurb: "One pet you raise together" },
+    { id: "duo",      name: "Duo",      blurb: "One each, side by side" },
+    { id: "baby",     name: "Baby",     blurb: "Milestones, not levels" }
+  ];
+
+  /* shapes, chosen on top of the type. Baby has its own silhouettes,
+     so these apply to Creature and to each half of a Duo. */
+  const BODIES = [
+    { id: "blob",  name: "Blob",  blurb: "Round and unbothered" },
+    { id: "bean",  name: "Bean",  blurb: "Tall and dramatic" },
+    { id: "puff",  name: "Puff",  blurb: "Wide and smug" },
+    { id: "spike", name: "Spike", blurb: "Pointy and anxious" }
+  ];
+
+  function bodyPath(shape, stage) {
+    const small = stage === "hatch";
+    switch (shape) {
+      case "bean":
+        return small ? "M50 28c11 0 18 10 18 24 0 15-7 24-18 24s-18-9-18-24c0-14 7-24 18-24z"
+                     : "M50 18c14 0 23 12 23 30 0 20-9 32-23 32s-23-12-23-32c0-18 9-30 23-30z";
+      case "puff":
+        return small ? "M50 32c16 0 24 9 24 21 0 13-10 21-24 21s-24-8-24-21c0-12 8-21 24-21z"
+                     : "M50 26c20 0 30 11 30 26 0 16-13 26-30 26s-30-10-30-26c0-15 10-26 30-26z";
+      case "spike":
+        return small ? "M50 24 59 36c7 3 11 10 11 18 0 14-9 22-20 22s-20-8-20-22c0-8 4-15 11-18z"
+                     : "M50 14 62 30c9 4 14 12 14 22 0 18-12 28-26 28s-26-10-26-28c0-10 5-18 14-22z";
+      default:
+        return small ? "M50 30c13 0 21 10 21 23 0 14-9 22-21 22s-21-8-21-22c0-13 8-23 21-23z"
+                     : "M50 22c17 0 27 13 27 30 0 18-12 28-27 28s-27-10-27-28c0-17 10-30 27-30z";
+    }
+  }
+  function armX(shape) { return shape === "puff" ? 21 : shape === "bean" ? 28 : 26; }
+  function armY(shape) { return shape === "bean" ? 60 : shape === "puff" ? 64 : 62; }
+
+  /* stage labels differ per type */
+  const STAGE_NAMES = {
+    creature: { egg: "Egg", hatch: "Hatchling", young: "Young", grown: "Grown" },
+    duo:      { egg: "Two eggs", hatch: "Hatchlings", young: "Young", grown: "Grown" },
+    baby:     { egg: "On the way", hatch: "Swaddled", young: "Sitting up", grown: "Toddling" }
+  };
+  function stageLabel(type, key) {
+    return (STAGE_NAMES[type] || STAGE_NAMES.creature)[key] || key;
+  }
+
   /* ---------- palette ---------- */
   const COLORS = [
     { id: "violet", body: "#8B5CF6", dark: "#6D28D9", name: "Violet" },
@@ -98,6 +146,54 @@ const TSSync = (() => {
     }).join("");
   }
 
+  /* the shape, per type and stage */
+  function bodyFor(sl, stage, c, uid) {
+    const type = (sl && sl.type) || "creature";
+
+    if (type === "baby") {
+      const skin = "#F0D2B4", cheek = "rgba(224,120,120,.35)";
+      if (stage === "hatch") {
+        /* swaddled: a bundle with a head poking out */
+        return '<path d="M26 62c0-14 11-22 24-22s24 8 24 22c0 12-9 20-24 20s-24-8-24-20z" fill="url(#' + uid + ')"/>' +
+               '<circle cx="50" cy="40" r="17" fill="' + skin + '"/>' +
+               '<ellipse cx="40" cy="45" rx="4" ry="2.6" fill="' + cheek + '"/>' +
+               '<ellipse cx="60" cy="45" rx="4" ry="2.6" fill="' + cheek + '"/>';
+      }
+      if (stage === "young") {
+        /* sitting up, arms out */
+        return '<path d="M32 78c0-14 8-22 18-22s18 8 18 22z" fill="url(#' + uid + ')"/>' +
+               '<circle cx="50" cy="44" r="19" fill="' + skin + '"/>' +
+               '<ellipse cx="27" cy="70" rx="6" ry="5" fill="' + skin + '"/>' +
+               '<ellipse cx="73" cy="70" rx="6" ry="5" fill="' + skin + '"/>' +
+               '<ellipse cx="38" cy="50" rx="4.5" ry="3" fill="' + cheek + '"/>' +
+               '<ellipse cx="62" cy="50" rx="4.5" ry="3" fill="' + cheek + '"/>' +
+               '<path d="M44 26q6-8 12 0" stroke="#6B4A2F" stroke-width="3" fill="none" stroke-linecap="round"/>';
+      }
+      /* toddling */
+      return '<rect x="34" y="54" width="32" height="26" rx="10" fill="url(#' + uid + ')"/>' +
+             '<circle cx="50" cy="40" r="20" fill="' + skin + '"/>' +
+             '<path d="M30 24q20-12 40 0v6q-20-9-40 0z" fill="#6B4A2F"/>' +
+             '<ellipse cx="26" cy="62" rx="5" ry="7" fill="' + skin + '"/>' +
+             '<ellipse cx="74" cy="62" rx="5" ry="7" fill="' + skin + '"/>' +
+             '<rect x="38" y="79" width="9" height="7" rx="3" fill="' + c.dark + '"/>' +
+             '<rect x="53" y="79" width="9" height="7" rx="3" fill="' + c.dark + '"/>' +
+             '<ellipse cx="36" cy="47" rx="5" ry="3.2" fill="' + cheek + '"/>' +
+             '<ellipse cx="64" cy="47" rx="5" ry="3.2" fill="' + cheek + '"/>';
+    }
+
+    /* creature (and each half of a duo) */
+    const shape = (sl && sl.body) || "blob";
+    const g = bodyPath(shape, stage);
+    const ax = armX(shape), ay = armY(shape);
+    let ears = "";
+    if ((stage === "young" || stage === "grown") && shape !== "spike") {
+      ears = '<path d="M36 26q2-11 8-2z" fill="' + c.body + '"/><path d="M64 26q-2-11-8-2z" fill="' + c.body + '"/>';
+    }
+    return '<path d="' + g + '" fill="url(#' + uid + ')"/>' + ears +
+      '<ellipse cx="' + ax + '" cy="' + ay + '" rx="6" ry="9" fill="' + c.body + '"/>' +
+      '<ellipse cx="' + (100 - ax) + '" cy="' + ay + '" rx="6" ry="9" fill="' + c.body + '"/>';
+  }
+
   /* the whole creature */
   function draw(sl, opts) {
     opts = opts || {};
@@ -133,12 +229,27 @@ const TSSync = (() => {
       '<stop offset="100%" stop-color="' + c.dark + '"/></radialGradient></defs>' +
       '<ellipse cx="50" cy="88" rx="' + (20 * g) + '" ry="4" fill="#000" opacity=".08"/>' +
       '<g transform="translate(50 56) scale(' + g + ') translate(-50 -56)">' +
-        '<path d="M50 22c17 0 27 13 27 30 0 18-12 28-27 28s-27-10-27-28c0-17 10-30 27-30z" fill="url(#' + uid + ')"/>' +
-        '<ellipse cx="26" cy="62" rx="6" ry="9" fill="' + c.body + '"/>' +
-        '<ellipse cx="74" cy="62" rx="6" ry="9" fill="' + c.body + '"/>' +
+        bodyFor(sl, stage, c, uid) +
         face(mood) +
         accSvg(sl && sl.acc) +
       "</g></svg>";
+  }
+
+  /* A Duo is two creatures in one scene. Each half mirrors that person's
+     day, which is the whole point - you can see who is carrying it. */
+  function drawDuo(sl, opts) {
+    opts = opts || {};
+    const size = opts.size || 130;
+    const days = opts.days || 0;
+    const stage = opts.stage || stageFor(days).key;
+    const a = opts.moodA || opts.mood || "waiting";
+    const b = opts.moodB || opts.mood || "waiting";
+    const other = sl && sl.color2 ? { color: sl.color2 } : { color: "peach" };
+    const half = Math.round(size * 0.62);
+    return '<div class="sl-duo">' +
+      draw({ ...sl, type: "creature" }, { size: half, days, stage, mood: a, still: opts.still }) +
+      draw({ ...other, type: "creature", acc: [] }, { size: half, days, stage, mood: b, still: opts.still }) +
+      "</div>";
   }
 
   /* ---------- lifecycle ---------- */
@@ -176,17 +287,19 @@ const TSSync = (() => {
   }
 
   /* ---------- accessories ---------- */
-  function unlockedItems(bestStreak, isPro) {
+  function unlockedItems(bestStreak, isPro, all) {
     if (typeof TS_ITEMS === "undefined") return [];
+    if (all) return TS_ITEMS.slice();
     return TS_ITEMS.filter(i => i.day <= bestStreak && (i.tier === "free" || isPro));
   }
-  function ownsItem(item, bestStreak, isPro) {
+  function ownsItem(item, bestStreak, isPro, all) {
+    if (all) return true;
     return item.day <= bestStreak && (item.tier === "free" || isPro);
   }
 
   return {
-    STAGES, COLORS, MOODS, UNLOCK_AT, FADE_HOURS,
-    stageFor, ageOf, colorOf, moodFor, draw,
+    STAGES, COLORS, TYPES, BODIES, MOODS, UNLOCK_AT, FADE_HOURS, bodyPath,
+    stageFor, stageLabel, ageOf, colorOf, moodFor, draw, drawDuo,
     isFading, hoursLeft, isLost, youngestAlive, canRequest,
     unlockedItems, ownsItem
   };
