@@ -28,7 +28,7 @@
   let editingId = null, modalRepeat = "none", modalDays = new Set();
   let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
   let firstNudgeLoad = true, firstPraiseLoad = true;
-  let rsvps = [], locations = {}, mySyncs = [], repairs = [], shames = [];
+  let rsvps = [], locations = {}, mySyncs = [], repairs = [], shames = [], synclings = [];
   let seenShames = new Set();
   let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
   let detailTask = null;
@@ -57,10 +57,13 @@
     Store.watchSyncs((list) => { mySyncs = list || []; });
     if (Store.watchRepairs) Store.watchRepairs((r) => { repairs = r || []; render(); });
     if (Store.watchShames) Store.watchShames((x) => { shames = x || []; handleShames(); render(); });
+    if (Store.watchSynclings) Store.watchSynclings((x) => { synclings = x || []; render(); });
   });
 
   function applySync(s) {
     if (window.tsApplyTheme) tsApplyTheme(s.theme || "lavender");
+    const flame = document.querySelector(".streak-pill .flame");
+    if (flame) flame.textContent = s.streakIcon || "🔥";
     members = (s.memberUids || []).map(u => ({ uid: u, ...(s.members[u] || { name: "?" }) }));
     /* me first, then everyone else */
     members.sort((a, b) => (a.uid === me.uid ? -1 : b.uid === me.uid ? 1 : 0));
@@ -215,6 +218,48 @@
   }
 
   /* ---------- render ---------- */
+  /* ---------- synclings ---------- */
+  function renderSynclings() {
+    /* TSSync/TSSyncUI are declared with const, so they are NOT on window.
+       Checking window.X silently disabled this whole function. */
+    if (typeof TSSyncUI === "undefined" || typeof TSSync === "undefined" || !sync) return;
+    const streak = sharedStreak();
+    const today = TS.today();
+    const mine = tasksFor(me.uid, today);
+    const others = members.filter(m => m.uid !== me.uid);
+    const theirTasks = others.flatMap(m => tasksFor(m.uid, today));
+
+    /* keep the fade clock honest: it starts when the streak dies and
+       clears the moment the streak is alive again */
+    const broke = brokenDay();
+    const youngest = TSSync.youngestAlive(synclings);
+    if (broke && youngest && !youngest.fadingSince && Store.updateSyncling) {
+      Store.updateSyncling(youngest.id, { fadingSince: Date.now() });
+    }
+    if (!broke) {
+      synclings.filter(s => s.fadingSince && !s.lost).forEach(s => {
+        if (Store.updateSyncling) Store.updateSyncling(s.id, { fadingSince: null });
+      });
+    }
+    synclings.filter(s => TSSync.isFading(s) && TSSync.hoursLeft(s) <= 0 && !s.lost)
+      .forEach(s => {
+        if (Store.updateSyncling) Store.updateSyncling(s.id, { lost: true, lostAt: Date.now() });
+      });
+
+    TSSyncUI.render("#syncling-mount", {
+      me: me, sync: sync, members: members, synclings: synclings, streak: streak,
+      bestStreak: Math.max(streak, sync.bestStreak || 0),
+      isPro: TSPlan.isPro(me),
+      today: today,
+      state: {
+        mineDone: mine.length > 0 && mine.every(t => isDone(t, today)),
+        theirsDone: theirTasks.length > 0 && theirTasks.every(t => isDone(t, today)),
+        anyMissed: members.some(m => tasksFor(m.uid, today).some(t => TS.isMissed(t, today, completions)))
+      }
+    });
+  }
+
+
   function render() {
     if (!me || !sync) return;
     paintStreak();
@@ -245,16 +290,31 @@
     }
     return streak;
   }
-  /* the most recent broken day, if it is recent enough to be worth saving */
+  /* The most recent broken day - but only worth offering if a real streak
+     died there. Nothing to restore if you never had one. */
   function brokenDay() {
     for (let i = 1; i <= 3; i++) {
       const d = TS.addDays(TS.today(), -i);
       if (isRepaired(d)) continue;
       const st = members.map(m => dayComplete(m.uid, d));
-      if (st.some(x => x === false)) return d;
+      if (st.some(x => x === false)) {
+        return streakBefore(d) >= 1 ? d : null;
+      }
       if (st.every(x => x === null)) return null;
     }
     return null;
+  }
+
+  /* how long the run was immediately before the given day */
+  function streakBefore(dateStr) {
+    let n = 0, d = TS.addDays(dateStr, -1);
+    for (let i = 0; i < 365; i++) {
+      const st = members.map(m => dayComplete(m.uid, d));
+      if (st.some(x => x === false) && !isRepaired(d)) break;
+      if (st.every(x => x === null) && !isRepaired(d)) break;
+      n++; d = TS.addDays(d, -1);
+    }
+    return n;
   }
   function paintStreak() {
     const s = sharedStreak();
@@ -275,29 +335,32 @@
         pill.parentNode.insertBefore(fix, pill.nextSibling);
       }
       const short = TS.prettyShort(broke).split(",")[0];
+      const lost = streakBefore(broke);
       fix.innerHTML = window.matchMedia("(max-width:820px)").matches
-        ? "🛟 Repair"
-        : "🛟 Repair " + short;
-      fix.title = "Your streak broke on " + TS.prettyDay(broke);
+        ? "🛟 Restore"
+        : "🛟 Restore " + short;
+      fix.title = "Your " + lost + "-day streak broke on " + TS.prettyDay(broke);
       fix.onclick = () => askRepair(broke);
     } else if (fix) fix.remove();
   }
 
   function askRepair(dateStr) {
+    const lost = streakBefore(dateStr);
     if (!TSPlan.isPro(me)) {
-      tsPaywall("Save your streak", "Streak repair");
+      tsPaywall("Restore your " + lost + "-day streak", "Streak restore");
       return;
     }
     if (!TSPlan.canRepair(me)) {
-      tsToast("You've used your repair this month - it resets on the 1st");
+      tsToast("You've used your restore this month - it resets on the 1st");
       return;
     }
     const left = TSPlan.repairsAllowed(me) - TSPlan.repairsUsed(me);
-    if (!confirm("Repair the streak for " + TS.prettyDay(dateStr) + "?\n\nYou have " + left +
-                 " repair" + (left === 1 ? "" : "s") + " left this month.")) return;
+    if (!confirm("Restore the streak for " + TS.prettyDay(dateStr) + "?\n\n" +
+                 "You'll get your " + lost + "-day streak back. " +
+                 "You have " + left + " restore" + (left === 1 ? "" : "s") + " left this month.")) return;
     Store.repairStreak(dateStr).then(() => {
       tsChime();
-      tsToast("Streak saved 🛟");
+      tsToast("Streak restored 🛟");
       setTimeout(() => location.reload(), 800);
     });
   }
@@ -329,6 +392,7 @@
     members.forEach(m => cols.appendChild(personColumn(m, changed)));
 
     applyMobileTab();
+    renderSynclings();
     if (window.tsRenderChores) tsRenderChores({
       mount: "#chores-mount", sync, members, me,
       onSave: () => setTimeout(() => location.reload(), 500)

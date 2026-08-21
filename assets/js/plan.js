@@ -115,8 +115,9 @@ const TSPlan = (() => {
 const TS_PRO_FEATURES = [
   ["👥", "Group Syncs", "Start syncs with your whole crew, not just one person."],
   ["♾️", "Unlimited syncs", "Free tops out at 2 you create. Joining is always unlimited."],
-  ["🛟", "Streak repair", "One save a month when life happens. Keep the run alive."],
+  ["🛟", "Streak restore", "One save a month when life happens. Keep the run alive."],
   ["🎨", "Sync themes", "Pick the colours for a whole sync - everyone in it sees them."],
+  ["🔥", "Your streak icon", "Swap the flame for anything you want. Everyone in the sync sees it."],
   ["🧹", "Chore rotation", "Auto-rotating chores for group syncs, posted to chat."],
   ["📸", "Weekly recap", "A shareable card of your week: streaks, wins, funniest stat."],
   ["🔔", "More nudges", CONFIG.PLAN.PRO_NUDGES_SENT_PER_DAY + " a day instead of " + CONFIG.PLAN.FREE_NUDGES_SENT_PER_DAY + "."],

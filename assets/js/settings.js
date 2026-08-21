@@ -47,7 +47,7 @@
 
     if (CONFIG.DEMO_MODE) $("#btn-reset-demo").classList.remove("hidden");
     paintPro(user);
-    if (s) paintThemes(user, s);
+    if (s) { paintThemes(user, s); paintStreakIcon(user, s); }
   });
 
   function paintSync(s) {
@@ -222,6 +222,51 @@
       const first = $("#pro-usage").firstChild;
       if (first) first.querySelector("b").textContent = o + " of " + (pro ? "unlimited" : TSPlan.maxOwned(user));
     });
+  };
+
+  const STREAK_ICONS = ["🔥", "⚡", "💜", "🏆", "💎", "🌟", "🚀", "😤", "🧊", "🍀"];
+
+  window.paintStreakIcon = function (user, sync) {
+    const pro = TSPlan.isPro(user);
+    $("#icon-sync-name").textContent = sync.name;
+    $("#icon-lock").innerHTML = pro ? "" : '<span class="lock-chip">PRO</span>';
+    const row = $("#streak-icon-row");
+    const current = sync.streakIcon || "🔥";
+    row.innerHTML = "";
+
+    const choose = async (icon, el) => {
+      if (!pro) { tsPaywall("Make the streak yours", "Your streak icon"); return false; }
+      await Store.updateSync(sync.id, { streakIcon: icon });
+      sync.streakIcon = icon;
+      document.querySelectorAll(".streak-opt,.streak-custom").forEach(x => x.classList.remove("on"));
+      if (el) el.classList.add("on");
+      tsToast("Streak icon is now " + icon + " for everyone in " + sync.name);
+      return true;
+    };
+
+    STREAK_ICONS.forEach(ic => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "streak-opt" + (ic === current ? " on" : "");
+      b.textContent = ic;
+      b.addEventListener("click", () => choose(ic, b));
+      row.appendChild(b);
+    });
+
+    /* anything they want */
+    const custom = document.createElement("input");
+    custom.className = "streak-custom" + (STREAK_ICONS.includes(current) ? "" : " on");
+    custom.maxLength = 4;
+    custom.placeholder = "✎";
+    custom.title = "Type any emoji";
+    if (!STREAK_ICONS.includes(current)) custom.value = current;
+    custom.addEventListener("input", async () => {
+      const v = custom.value.trim();
+      if (!v) return;
+      const ok = await choose(v, custom);
+      if (!ok) custom.value = "";
+    });
+    row.appendChild(custom);
   };
 
   window.paintThemes = function (user, sync) {

@@ -43,10 +43,10 @@ function tsRid(p) { return (p || "id") + "_" + Math.random().toString(36).slice(
    ============================================================ */
 const DemoStore = (() => {
   const KEY = "toosynced_demo_v2";
-  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [] };
+  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [], synclings: [] };
 
   function blank() {
-    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
+    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], synclings: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
   }
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
@@ -68,6 +68,7 @@ const DemoStore = (() => {
     if (kind === "locations" || kind === "all") L.locations.forEach(cb => cb(db.locations || {}));
     if (kind === "repairs" || kind === "all") L.repairs.forEach(cb => cb(Object.values(db.repairs || {}).filter(inSync)));
     if (kind === "shames" || kind === "all") L.shames.forEach(cb => cb((db.shames || []).filter(inSync)));
+    if (kind === "synclings" || kind === "all") L.synclings.forEach(cb => cb((db.synclings || []).filter(inSync)));
     if (kind === "sync" || kind === "all") L.sync.forEach(cb => cb(s));
     if (kind === "syncs" || kind === "all") L.syncs.forEach(cb => cb(Object.values(db.syncs)));
   }
@@ -157,7 +158,7 @@ const DemoStore = (() => {
       db.syncs[id] = {
         id, name: name || (kind === "group" ? "New group sync" : "New sync"),
         kind: kind || "two", photo: photo || null, inviteCode: tsCode(),
-        theme: "lavender", chores: null,
+        theme: "lavender", chores: null, streakIcon: "🔥",
         ownerUid: db.user.uid, memberUids: [db.user.uid],
         members: { [db.user.uid]: { name: db.user.name, photo: db.user.photo || null } },
         createdAt: Date.now()
@@ -378,6 +379,23 @@ const DemoStore = (() => {
     async markNudgeSeen(id) {
       const db = load(); const n = db.nudges.find(x => x.id === id);
       if (n) n.seen = true; save(db); emit("nudges");
+    },
+
+    /* ---------- synclings ---------- */
+    watchSynclings(cb) { L.synclings.push(cb); emit("synclings"); },
+    async addSyncling(sl) {
+      const db = load(); const s = active(db);
+      if (!db.synclings) db.synclings = [];
+      const rec = { ...sl, id: tsRid("sl"), syncId: s.id, createdAt: Date.now() };
+      db.synclings.push(rec);
+      save(db); emit("synclings");
+      return rec;
+    },
+    async updateSyncling(id, patch) {
+      const db = load();
+      const x = (db.synclings || []).find(y => y.id === id);
+      if (x) Object.assign(x, patch);
+      save(db); emit("synclings");
     },
 
     /* ---------- shame (Pro) ---------- */
@@ -641,6 +659,7 @@ const FirebaseStore = (() => {
         id, name: d.name, kind: d.kind || "two", photo: d.photo || null,
         inviteCode: d.inviteCode, ownerUid: d.ownerUid,
         theme: d.theme || "lavender", chores: d.chores || null,
+        streakIcon: d.streakIcon || "🔥",
         memberUids: d.memberUids || [],
         members: d.members || {},
         joined: (d.memberUids || []).length >= 2
@@ -678,7 +697,7 @@ const FirebaseStore = (() => {
       const ref = await db.collection("syncs").add({
         name: name || (kind === "group" ? "New group sync" : "New sync"),
         kind: kind || "two", photo: photo || null, inviteCode: tsCode(),
-        theme: "lavender", chores: null,
+        theme: "lavender", chores: null, streakIcon: "🔥",
         ownerUid: uid, memberUids: [uid],
         members: { [uid]: { name: me.name, photo: me.photo || null } },
         createdAt: Date.now()
@@ -864,6 +883,21 @@ const FirebaseStore = (() => {
       return q.size;
     },
     async markNudgeSeen(id) { await syncRef().collection("nudges").doc(id).update({ seen: true }); },
+
+    /* ---------- synclings ---------- */
+    watchSynclings(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("synclings")
+        .onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      unsubs.push(un);
+    },
+    async addSyncling(sl) {
+      const ref = await syncRef().collection("synclings").add({ ...sl, createdAt: Date.now() });
+      return { id: ref.id, ...sl };
+    },
+    async updateSyncling(id, patch) {
+      await syncRef().collection("synclings").doc(id).update(patch);
+    },
 
     /* ---------- shame (Pro) ---------- */
     watchShames(cb) {
