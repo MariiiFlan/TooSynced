@@ -9,6 +9,17 @@
 
   const ICONS = ["🏃","🏋️","🧘","🚶","💊","💧","📚","💻","☕","🍝","📖","🧹","🛏️","🎸","🛒","💜"];
   const PRAISE = ["👏", "🔥", "💜", "💪", "🙌"];
+  /* keep these teasing, not cruel - it goes to someone you like */
+  const SHAME_LINES = [
+    "caught you slippin 👀",
+    "the streak is watching 😭",
+    "we don't claim this one 💀",
+    "L + ratio + you skipped it 😈",
+    "it's giving... not done 🙃",
+    "bro really said maybe tomorrow 😮‍💨",
+    "this is a public callout 📢",
+    "the group has noticed 👁️"
+  ];
 
   let me = null, sync = null, members = [];
   let tasks = [], completions = new Map(), nudges = [], praises = [];
@@ -17,7 +28,8 @@
   let editingId = null, modalRepeat = "none", modalDays = new Set();
   let modalIcon = ICONS[0], modalAllowNudge = true, modalWhen = "anytime";
   let firstNudgeLoad = true, firstPraiseLoad = true;
-  let rsvps = [], locations = {}, mySyncs = [], repairs = [];
+  let rsvps = [], locations = {}, mySyncs = [], repairs = [], shames = [];
+  let seenShames = new Set();
   let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
   let detailTask = null;
 
@@ -44,6 +56,7 @@
     Store.watchLocations((l) => { locations = l || {}; render(); });
     Store.watchSyncs((list) => { mySyncs = list || []; });
     if (Store.watchRepairs) Store.watchRepairs((r) => { repairs = r || []; render(); });
+    if (Store.watchShames) Store.watchShames((x) => { shames = x || []; handleShames(); render(); });
   });
 
   function applySync(s) {
@@ -73,6 +86,21 @@
         return (a.createdAt || 0) - (b.createdAt || 0);
       });
   }
+  function shamesFor(taskId, dateStr) {
+    return shames.filter(s => s.taskId === taskId && s.date === dateStr);
+  }
+  function handleShames() {
+    shames.filter(x => x.to === me.uid && !x.seen && !seenShames.has(x.id)).forEach(x => {
+      seenShames.add(x.id);
+      const t = tasks.find(y => y.id === x.taskId);
+      const who = person(x.from).name;
+      tsChime();
+      tsToast("😈 " + who + " shamed you" + (t ? " for " + t.name : ""));
+      tsNotify(who + " shamed you 😈", (t ? t.name + " - " : "") + (x.text || "you missed it"), "shame-" + x.id);
+      Store.markShameSeen(x.id);
+    });
+  }
+
   function praisesFor(taskId, dateStr) {
     return praises.filter(p => p.taskId === taskId && p.date === dateStr);
   }
@@ -230,7 +258,11 @@
   }
   function paintStreak() {
     const s = sharedStreak();
-    $("#streak-label").textContent = s > 0 ? s + "-day streak" : "start your streak";
+    /* on a narrow phone only the part outside .word survives, so make sure
+       something readable is always left */
+    $("#streak-label").innerHTML = s > 0
+      ? s + '<span class="word">-day streak</span>'
+      : 'Start<span class="word"> your streak</span>';
 
     const broke = brokenDay();
     const pill = document.querySelector(".streak-pill");
@@ -302,7 +334,6 @@
       onSave: () => setTimeout(() => location.reload(), 500)
     });
     if (changed) sweepBars();
-    renderNowLine();
     maybeCelebrate();
     paintPresence([]);
     paintLocations();
@@ -441,6 +472,15 @@
     }
     if (badges.children.length) row.appendChild(badges);
 
+    const sh = shamesFor(t.id, currentDate);
+    if (sh.length) {
+      const chip = document.createElement("span");
+      chip.className = "shame-count";
+      chip.textContent = "😈 " + sh.length;
+      chip.title = sh.map(x => person(x.from).name).join(", ");
+      row.appendChild(chip);
+    }
+
     /* praise counts anyone can see */
     const pr = praisesFor(t.id, currentDate);
     if (pr.length) {
@@ -474,17 +514,40 @@
         pb.setAttribute("aria-label", "Send praise");
         pb.addEventListener("click", (e) => { e.stopPropagation(); openPraise(pb, t, owner); });
         row.appendChild(pb);
+      } else if (missed && t.allowNudge !== false) {
+        /* the moment has passed - nudging to "remind" them is pointless,
+           so this becomes the playful callout instead */
+        const sb = document.createElement("button");
+        sb.className = "btn btn--shame";
+        sb.innerHTML = '<span class="bell">😈</span> Shame';
+        sb.title = "Playfully shame " + owner.name;
+        const already = shamesFor(t.id, currentDate).some(x => x.from === me.uid);
+        if (already) { sb.disabled = true; sb.innerHTML = "😈 Shamed"; }
+        sb.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const chk = TSPlan.shameCheck(me, shames, me.uid, TS.today(), t.id);
+          if (!chk.ok) {
+            if (chk.reason === "pro") { tsPaywall("Shame them for missing it", "Playful shame"); return; }
+            if (chk.reason === "cooldown") { tsToast("Let them breathe - try again in " + chk.wait + "m"); return; }
+            tsToast("That's enough shame for one day 😅"); return;
+          }
+          sb.classList.add("wobbling");
+          sb.disabled = true;
+          const target = row.closest(".person-col").querySelector(".presence-wrap .av");
+          tsFlyDot(sb, target || sb);
+          const line = SHAME_LINES[Math.floor(Math.random() * SHAME_LINES.length)];
+          await Store.sendShame(t.owner, t.id, currentDate, line);
+          tsChime();
+          sb.innerHTML = "😈 Shamed";
+          tsToast("Shame sent to " + owner.name + " 😈");
+        });
+        row.appendChild(sb);
       } else if (t.allowNudge !== false) {
-        /* nudge any task they haven't finished - louder once it's overdue */
+        /* still time to get it done - a nudge actually helps */
         const nb = document.createElement("button");
-        if (missed) {
-          nb.className = "btn btn--nudge";
-          nb.innerHTML = '<span class="bell">🔔</span> Nudge';
-        } else {
-          nb.className = "bell-quiet"; nb.textContent = "🔔";
-          nb.setAttribute("aria-label", "Nudge " + owner.name);
-          nb.title = "Nudge " + owner.name;
-        }
+        nb.className = "bell-quiet"; nb.textContent = "🔔";
+        nb.setAttribute("aria-label", "Nudge " + owner.name);
+        nb.title = "Nudge " + owner.name;
         nb.addEventListener("click", async (e) => {
           e.stopPropagation();
           const chk = TSPlan.nudgeCheck(me, nudges, me.uid, TS.today(), t.id);
@@ -492,8 +555,7 @@
           nb.classList.add("wobbling");
           const target = row.closest(".person-col").querySelector(".presence-wrap .av");
           tsFlyDot(nb, target || nb);
-          if (missed) { nb.disabled = true; setTimeout(() => { nb.textContent = "Sent 💜"; }, 450); }
-          else setTimeout(() => nb.classList.remove("wobbling"), 900);
+          setTimeout(() => nb.classList.remove("wobbling"), 900);
           await tryNudge(t, owner.name, nb);
         });
         row.appendChild(nb);
@@ -545,25 +607,6 @@
   /* ---------- ambience ---------- */
   function sweepBars() {
     $$(".progress").forEach(p => { p.classList.remove("sweeping"); void p.offsetWidth; p.classList.add("sweeping"); });
-  }
-  let nowTimer = null;
-  function renderNowLine() {
-    let line = document.querySelector(".now-line");
-    const cols = $("#day-cols");
-    if (currentDate !== TS.today() || currentView !== "day" || members.length > 2) {
-      if (line) line.remove(); return;
-    }
-    if (!line) {
-      line = document.createElement("div");
-      line.className = "now-line";
-      line.innerHTML = '<span class="dot"></span><span class="lbl">NOW</span>';
-      cols.appendChild(line);
-    } else cols.appendChild(line);
-    const n = new Date();
-    const mins = n.getHours() * 60 + n.getMinutes();
-    const frac = Math.min(1, Math.max(0, (mins - 300) / (1380 - 300)));
-    line.style.top = (6 + frac * 88) + "%";
-    if (!nowTimer) nowTimer = setInterval(renderNowLine, 60000);
   }
   function maybeCelebrate() {
     if (members.length < 2 || currentDate !== TS.today()) return;
@@ -739,6 +782,19 @@
     } else if (done) {
       act.textContent = "Send praise 👏";
       act.onclick = () => { Store.sendPraise(task.owner, task.id, currentDate, "👏"); tsToast("Sent 👏 to " + owner.name); closeDetail(); };
+    } else if (TS.isMissed(task, currentDate, completions) && task.allowNudge !== false) {
+      act.textContent = "Shame " + owner.name + " 😈";
+      act.onclick = async () => {
+        const chk = TSPlan.shameCheck(me, shames, me.uid, TS.today(), task.id);
+        if (!chk.ok) {
+          if (chk.reason === "pro") { tsPaywall("Shame them for missing it", "Playful shame"); return; }
+          if (chk.reason === "cooldown") { tsToast("Let them breathe - try again in " + chk.wait + "m"); return; }
+          tsToast("That's enough shame for one day 😅"); return;
+        }
+        const line = SHAME_LINES[Math.floor(Math.random() * SHAME_LINES.length)];
+        await Store.sendShame(task.owner, task.id, currentDate, line);
+        tsChime(); tsToast("Shame sent to " + owner.name + " 😈"); closeDetail();
+      };
     } else if (task.allowNudge !== false) {
       act.textContent = "Nudge " + owner.name + " 🔔";
       act.onclick = async () => {

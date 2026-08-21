@@ -43,10 +43,10 @@ function tsRid(p) { return (p || "id") + "_" + Math.random().toString(36).slice(
    ============================================================ */
 const DemoStore = (() => {
   const KEY = "toosynced_demo_v2";
-  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [] };
+  const L = { tasks: [], completions: [], nudges: [], praises: [], sync: [], syncs: [], messages: [], rsvps: [], locations: [], repairs: [], shames: [] };
 
   function blank() {
-    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
+    return { user: null, syncs: {}, tasks: {}, completions: {}, nudges: [], praises: [], shames: [], messages: {}, rsvps: {}, locations: {}, repairs: {}, nudgeCount: {} };
   }
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
@@ -67,6 +67,7 @@ const DemoStore = (() => {
     if (kind === "rsvps" || kind === "all") L.rsvps.forEach(cb => cb(Object.values(db.rsvps || {}).filter(inSync)));
     if (kind === "locations" || kind === "all") L.locations.forEach(cb => cb(db.locations || {}));
     if (kind === "repairs" || kind === "all") L.repairs.forEach(cb => cb(Object.values(db.repairs || {}).filter(inSync)));
+    if (kind === "shames" || kind === "all") L.shames.forEach(cb => cb((db.shames || []).filter(inSync)));
     if (kind === "sync" || kind === "all") L.sync.forEach(cb => cb(s));
     if (kind === "syncs" || kind === "all") L.syncs.forEach(cb => cb(Object.values(db.syncs)));
   }
@@ -379,6 +380,22 @@ const DemoStore = (() => {
       if (n) n.seen = true; save(db); emit("nudges");
     },
 
+    /* ---------- shame (Pro) ---------- */
+    watchShames(cb) { L.shames.push(cb); emit("shames"); },
+    async sendShame(toUid, taskId, dateStr, text) {
+      const db = load(); const s = active(db);
+      if (!db.shames) db.shames = [];
+      db.shames.push({
+        id: tsRid("s"), syncId: s.id, from: db.user.uid, to: toUid,
+        taskId, date: dateStr, text: text || "", createdAt: Date.now(), seen: false
+      });
+      save(db); emit("shames");
+    },
+    async markShameSeen(id) {
+      const db = load(); const x = (db.shames || []).find(y => y.id === id);
+      if (x) x.seen = true; save(db); emit("shames");
+    },
+
     /* ---------- praise ---------- */
     watchPraises(cb) { L.praises.push(cb); emit("praises"); },
     async sendPraise(toUid, taskId, dateStr, emoji) {
@@ -456,7 +473,8 @@ const FirebaseStore = (() => {
         }
         const d = snap.data();
         syncId = d.activeSyncId || null;
-        cb({ uid, ...d });
+        /* email comes from the auth record, not the profile doc */
+        cb({ uid, email: u.email || d.email || null, ...d });
       });
     },
     async signUpEmail(name, email, pass, phone) {
@@ -846,6 +864,20 @@ const FirebaseStore = (() => {
       return q.size;
     },
     async markNudgeSeen(id) { await syncRef().collection("nudges").doc(id).update({ seen: true }); },
+
+    /* ---------- shame (Pro) ---------- */
+    watchShames(cb) {
+      if (!syncId) { cb([]); return; }
+      const un = syncRef().collection("shames").onSnapshot(s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      unsubs.push(un);
+    },
+    async sendShame(toUid, taskId, dateStr, text) {
+      await syncRef().collection("shames").add({
+        from: uid, to: toUid, taskId, date: dateStr,
+        text: text || "", createdAt: Date.now(), seen: false
+      });
+    },
+    async markShameSeen(id) { await syncRef().collection("shames").doc(id).update({ seen: true }); },
 
     watchPraises(cb) {
       if (!syncId) { cb([]); return; }

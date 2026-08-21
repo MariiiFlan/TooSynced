@@ -48,6 +48,12 @@ const CONFIG = {
     ENTITLEMENT: "pro"
   },
 
+  /* Accounts that always have Pro - you, and anyone you comp.
+     Matched on email or phone, case-insensitive. */
+  FOUNDERS: [
+    "officialkamariflanagan@gmail.com"
+  ],
+
   PLAN: {
     /* --- what free gets --- */
     FREE_MAX_SYNCS_OWNED: 2,        // syncs you CREATE. joining is unlimited.
@@ -60,6 +66,10 @@ const CONFIG = {
     /* --- what Pro gets --- */
     PRO_NUDGES_SENT_PER_DAY: 40,
     PRO_STREAK_REPAIRS_PER_MONTH: 1,
-    PRO_MAX_SYNCS_OWNED: 25
+    PRO_MAX_SYNCS_OWNED: 25,
+
+    /* playful shame, Pro only, capped so it stays a joke */
+    PRO_SHAMES_PER_DAY: 10,
+    SHAME_COOLDOWN_MIN: 30      // per task, per person
   }
 };

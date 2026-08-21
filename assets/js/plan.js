@@ -7,8 +7,18 @@
 const TSPlan = (() => {
   const P = CONFIG.PLAN;
 
+  function isFounder(user) {
+    if (!user) return false;
+    const list = (CONFIG.FOUNDERS || []).map(x => String(x).toLowerCase().trim());
+    if (!list.length) return false;
+    const email = (user.email || "").toLowerCase().trim();
+    const phone = (user.phone || "").toLowerCase().trim();
+    return (email && list.includes(email)) || (phone && list.includes(phone));
+  }
+
   function isPro(user) {
     if (!user) return false;
+    if (isFounder(user)) return true;      // comped accounts
     if (!user.pro) return false;
     if (user.proUntil && Date.now() > user.proUntil) return false;
     return true;
@@ -71,10 +81,31 @@ const TSPlan = (() => {
     return repairsUsed(user) < repairsAllowed(user);
   }
 
+  /* ---------- shame ---------- */
+  function canShame(user) { return isPro(user); }
+  function shamesToday(shames, uid, today) {
+    return (shames || []).filter(s => s.from === uid && s.date === today).length;
+  }
+  function shameCheck(user, shames, uid, today, taskId) {
+    if (!isPro(user)) return { ok: false, reason: "pro" };
+    const used = shamesToday(shames, uid, today);
+    if (used >= P.PRO_SHAMES_PER_DAY) return { ok: false, reason: "limit" };
+    /* don't let the same task be hammered */
+    const last = (shames || [])
+      .filter(s => s.from === uid && s.taskId === taskId && s.date === today)
+      .reduce((a, s) => Math.max(a, s.createdAt || 0), 0);
+    if (last && Date.now() - last < P.SHAME_COOLDOWN_MIN * 60000) {
+      return { ok: false, reason: "cooldown",
+               wait: Math.ceil((P.SHAME_COOLDOWN_MIN * 60000 - (Date.now() - last)) / 60000) };
+    }
+    return { ok: true, left: P.PRO_SHAMES_PER_DAY - used - 1 };
+  }
+
   return {
-    isPro, monthKey, ownedCount, maxOwned, canCreateSync, canCreateGroup,
+    isPro, isFounder, monthKey, ownedCount, maxOwned, canCreateSync, canCreateGroup,
     nudgeAllowance, chargeableToday, nudgeCheck,
-    repairsAllowed, repairsUsed, canRepair
+    repairsAllowed, repairsUsed, canRepair,
+    canShame, shamesToday, shameCheck
   };
 })();
 
@@ -88,7 +119,8 @@ const TS_PRO_FEATURES = [
   ["🎨", "Sync themes", "Pick the colours for a whole sync - everyone in it sees them."],
   ["🧹", "Chore rotation", "Auto-rotating chores for group syncs, posted to chat."],
   ["📸", "Weekly recap", "A shareable card of your week: streaks, wins, funniest stat."],
-  ["🔔", "More nudges", CONFIG.PLAN.PRO_NUDGES_SENT_PER_DAY + " a day instead of " + CONFIG.PLAN.FREE_NUDGES_SENT_PER_DAY + "."]
+  ["🔔", "More nudges", CONFIG.PLAN.PRO_NUDGES_SENT_PER_DAY + " a day instead of " + CONFIG.PLAN.FREE_NUDGES_SENT_PER_DAY + "."],
+  ["😈", "Playful shame", "When they miss something, let them hear about it. Lightly."]
 ];
 
 window.tsPaywall = (reason, highlight) => {

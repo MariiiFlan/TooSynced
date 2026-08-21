@@ -145,6 +145,25 @@ const TSAlerts = (() => {
       paintBadge();
     });
 
+    if (Store.watchShames) {
+      const shameMark = readMark("shameseen", Date.now());
+      const seenShame = new Set();
+      Store.watchShames((list) => {
+        (list || []).forEach(x => {
+          if (x.to !== me.uid || seenShame.has(x.id)) return;
+          seenShame.add(x.id);
+          if (!ready || (x.createdAt || 0) <= shameMark) return;
+          const t = tasks.find(y => y.id === x.taskId);
+          const who = person(x.from).name;
+          tsChime();
+          tsToast("😈 " + who + " shamed you" + (t ? " for " + t.name : ""));
+          tsNotify(who + " shamed you 😈",
+                   (t ? t.name + " - " : "") + (x.text || "you missed it"), "shame-" + x.id);
+        });
+        writeMark("shameseen", Date.now());
+      });
+    }
+
     /* someone let a task slip past its time */
     checkMissed();
     if (!missedTimer) missedTimer = setInterval(checkMissed, 60000);
