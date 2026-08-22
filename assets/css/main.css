@@ -1788,3 +1788,22 @@ html[data-mode="dark"] .setup-wrap{
 .sl-duo{display:flex;align-items:flex-end;justify-content:center;gap:-6px;}
 .sl-duo > svg:first-child{margin-right:-10px;z-index:1;}
 .sl-duo > svg:last-child{margin-left:-10px;}
+
+/* the toast paints itself with --ink, which is near-white in dark mode -
+   that gave white text on a white pill. It gets its own tokens now. */
+:root{--toast-bg:#1E1630;--toast-ink:#FFFFFF;}
+html[data-mode="dark"]{--toast-bg:#2A2A30;--toast-ink:#F2F2F3;}
+.toast{background:var(--toast-bg) !important;color:var(--toast-ink) !important;}
+html[data-mode="dark"] .toast{
+  border:1px solid var(--border2);
+  box-shadow:0 12px 30px rgba(0,0,0,.55);
+}
+
+/* the location pill was also white-on-white */
+html[data-mode="dark"] .loc-status,
+html[data-mode="dark"] .loc-pin{
+  background:var(--chip-bg);color:var(--deep);border-color:var(--chip-border);
+}
+html[data-mode="dark"] .btn:not(.btn--primary):not(.btn--nudge):not(.btn--shame){
+  color:var(--ink);
+}

@@ -32,6 +32,7 @@
   let goals = [], pings = [], proposals = [];
   let seenShames = new Set();
   let modalPlace = "", modalScope = "sync", modalPickIds = new Set(), modalRsvp = false;
+  let modalShared = false;
   let detailTask = null;
 
   tsSplash();
@@ -110,6 +111,22 @@
   }
 
   /* 30 day record for a task, as numbers and a dot strip */
+  /* A shared task is one thing living on several schedules. Ticking any
+     copy ticks them all, so nobody does the same chore twice. */
+  async function syncLinked(t, dateStr, done) {
+    if (!t.proposalId) return;
+    const linked = tasks.filter(x => x.proposalId === t.proposalId && x.id !== t.id);
+    for (const x of linked) {
+      if (completions.has(x.id + "_" + dateStr) === done) continue;
+      try { await Store.setDone(x.id, dateStr, done, x.owner); } catch (e) {}
+    }
+    if (done && linked.length && typeof TSPush !== "undefined") {
+      linked.map(x => x.owner).filter(u => u !== me.uid).forEach(u =>
+        TSPush.send(u, (me.name || "Someone") + " got it done ✅",
+          t.name + " is checked off for both of you", { syncId: sync.id, page: "app.html" }));
+    }
+  }
+
   function historyFor(t) {
     let occ = 0, done = 0, dots = "";
     for (let i = 29; i >= 0; i--) {
@@ -276,8 +293,9 @@
       if (!p) return;
       b.disabled = true;
       await Store.respondProposal(p.id, true);
-      /* it becomes a normal task on MY schedule, owned by me */
-      await Store.addTask({ ...p.data, proposalId: p.id }, [sync.id]);
+      /* it lands on MY schedule as my own task, but linked to theirs -
+         whoever ticks it first ticks it for everyone */
+      await Store.addTask({ ...p.data, proposalId: p.id, shared: true }, [sync.id]);
       if (typeof TSPush !== "undefined") {
         TSPush.send(p.from, (me.name || "They") + " accepted", p.data.name,
                     { syncId: sync.id, page: "app.html" });
@@ -559,9 +577,15 @@
           row.classList.add("blooming");
           ring.innerHTML = '<span class="ring-ripple"></span>' +
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="position:relative;"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="34"/></svg>';
-          setTimeout(() => Store.setDone(t.id, currentDate, true), 520);
-        } else Store.setDone(t.id, currentDate, !done);
-        if (!done) tsToast("Nice. " + t.name + " ✓");
+          setTimeout(async () => {
+            await Store.setDone(t.id, currentDate, true);
+            syncLinked(t, currentDate, true);
+          }, 520);
+        } else {
+          Store.setDone(t.id, currentDate, !done);
+          syncLinked(t, currentDate, !done);
+        }
+        if (!done) tsToast(t.shared ? "Done for both of you ✓" : "Nice. " + t.name + " ✓");
       });
     } else ring.style.pointerEvents = "none";
 
@@ -595,6 +619,12 @@
     if (t.private) {
       const b = document.createElement("span");
       b.textContent = "🔒"; b.title = "Private - only you see this"; b.style.fontSize = "13px";
+      badges.appendChild(b);
+    } else if (t.shared || t.proposalId) {
+      const b = document.createElement("span");
+      b.textContent = "🤝";
+      b.title = "Shared - either of you can check it off";
+      b.style.fontSize = "13px";
       badges.appendChild(b);
     } else if (t.owner === me.uid && (t.scope === "all" || t.scope === "pick")) {
       const b = document.createElement("span");
@@ -954,7 +984,11 @@
     edit.classList.toggle("hidden", !mine);
     if (mine) {
       act.textContent = done ? "Mark not done" : "Mark done";
-      act.onclick = () => { Store.setDone(task.id, currentDate, !done); closeDetail(); };
+      act.onclick = async () => {
+        await Store.setDone(task.id, currentDate, !done);
+        syncLinked(task, currentDate, !done);
+        closeDetail();
+      };
     } else if (done) {
       act.textContent = "Send praise 👏";
       act.onclick = () => { Store.sendPraise(task.owner, task.id, currentDate, "👏"); tsToast("Sent 👏 to " + owner.name); closeDetail(); };
@@ -1055,6 +1089,14 @@
     $("#t-place").value = task ? (task.place || "") : "";
     modalRsvp = task ? !!task.rsvp : false;
     $("#rsvp-switch").classList.toggle("on", modalRsvp);
+    modalShared = task ? !!task.shared : false;
+    $("#shared-switch").classList.toggle("on", modalShared);
+    /* it only makes sense with someone to share it with, and an existing
+       task can't be retro-shared without confusing its linked copies */
+    $("#shared-toggle").classList.toggle("hidden", !!task || members.length < 2);
+    $("#shared-toggle-label").textContent = members.length > 2
+      ? "Put it on everyone's schedule too"
+      : "Put it on " + (members.find(m => m.uid !== me.uid) || { name: "their" }).name.split(" ")[0] + "'s schedule too";
     modalScope = task ? (task.scope || (task.private ? "private" : "sync")) : "sync";
     modalPickIds = new Set();
     if (task && task.originId && modalScope === "pick") {
@@ -1132,6 +1174,11 @@
     $("#rsvp-switch").classList.toggle("on", modalRsvp);
   });
 
+  $("#shared-toggle").addEventListener("click", () => {
+    modalShared = !modalShared;
+    $("#shared-switch").classList.toggle("on", modalShared);
+  });
+
   $$("#when-pills .pill").forEach(p => p.addEventListener("click", () => { modalWhen = p.dataset.when; syncWhenUI(); }));
   $$("#repeat-pills .pill").forEach(p => p.addEventListener("click", () => { modalRepeat = p.dataset.rep; syncRepeatUI(); }));
   $$("#day-picks .day-pick").forEach(p => p.addEventListener("click", () => {
@@ -1185,23 +1232,27 @@
 
     /* "Everyone" does not just add it to your day - it asks the others,
        and only lands on their schedule once they say yes */
-    if (!editingId && modalScope === "shared") {
+    /* the "put it on everyone's schedule" switch: it lands on your day now
+       and goes out for the others to accept */
+    if (!editingId && modalShared && members.length > 1) {
       try {
-        await Store.proposeTask(data);
+        const prop = await Store.proposeTask(data);
+        if (prop && prop.id) {
+          await Store.addTask({ ...data, proposalId: prop.id, shared: true }, [sync.id]);
+        }
       } catch (err) {
         tsToast(err.message || "Couldn't send that");
         return;
       }
       closeModal();
       if (typeof TSPush !== "undefined") {
-        TSPush.sendToSync(sync, (me.name || "Someone") + " wants to add a task",
+        TSPush.sendToSync(sync, (me.name || "Someone") + " wants to share a task",
                           data.name + (data.time ? " at " + TS.prettyTime(data.time) : ""),
                           { syncId: sync.id, page: "app.html" });
       }
       tsChime();
-      tsToast(members.length > 1
-        ? "Sent to " + (members.length - 1) + (members.length === 2 ? " person" : " people") + " to accept"
-        : "Saved - it'll go out when someone joins");
+      const others = members.length - 1;
+      tsToast("Added - waiting on " + others + (others === 1 ? " person" : " people"));
       return;
     }
 

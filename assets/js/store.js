@@ -944,9 +944,10 @@ const FirebaseStore = (() => {
       const un = syncRef().collection("completions").onSnapshot(s => cb(s.docs.map(d => d.data())));
       unsubs.push(un);
     },
-    async setDone(taskId, dateStr, done) {
+    async setDone(taskId, dateStr, done, asUid) {
       const ref = syncRef().collection("completions").doc(taskId + "_" + dateStr);
-      if (done) await ref.set({ taskId, date: dateStr, uid, doneAt: Date.now() });
+      /* asUid lets a shared task be completed on someone else's behalf */
+      if (done) await ref.set({ taskId, date: dateStr, uid: asUid || uid, doneAt: Date.now() });
       else await ref.delete();
     },
 

@@ -109,6 +109,10 @@
           lat: Number(c.latitude.toFixed(5)),
           lng: Number(c.longitude.toFixed(5))
         });
+        if (typeof TSPush !== "undefined" && sync) {
+          TSPush.sendToSync(sync, (me.name || "Someone") + " shared where they are 📍",
+                            "Tap to see it on their day", { syncId: sync.id, page: "app.html" });
+        }
         tsToast("Location shared with this sync 📍");
       } catch (e) {
         tsToast(e.message === "denied"
@@ -127,6 +131,10 @@
         lng: Number(pos.coords.longitude.toFixed(5))
       });
       btn.disabled = false; btn.textContent = "Share where I am";
+      if (typeof TSPush !== "undefined" && sync) {
+        TSPush.sendToSync(sync, (me.name || "Someone") + " shared where they are 📍",
+                          "Tap to see it on their day", { syncId: sync.id, page: "app.html" });
+      }
       tsToast("Location shared with this sync 📍");
     }, (err) => {
       btn.disabled = false; btn.textContent = "Share where I am";
